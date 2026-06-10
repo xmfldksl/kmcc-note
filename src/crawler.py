@@ -115,7 +115,7 @@ def get_post_detail(item):
 
             item['content'] = content_after_title.strip()
 
-            # 첨부파일: 파일명 + 다운로드 링크(href)를 함께 수집 (변경 지점)
+            # 첨부파일: 파일명 + 다운로드 링크(href)를 함께 수집
             files = []
             for f in soup.select('.fileList a'):
                 href = f.get('href', '')
@@ -129,4 +129,10 @@ def get_post_detail(item):
 
             print(f"  -> 상세 데이터 수집 완료 (날짜: {item['date']}, 첨부 {len(files)}개): {item['title'][:15]}")
             return item
-        except Excepti
+        except Exception as e:
+            print(f"  -> 상세 페이지 접속 에러 (시도 {attempt}/{max_retries}): {e}")
+            if attempt == max_retries:
+                if not item.get('date'):
+                    item['date'] = "1970-01-01"
+                return item
+            time.sleep(5.0)
