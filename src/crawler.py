@@ -115,16 +115,23 @@ def get_post_detail(item):
 
             item['content'] = content_after_title.strip()
 
-            # 첨부파일: 파일명 + 다운로드 링크(href)를 함께 수집
+            # 첨부파일 수집: download.do 링크 중 파일명(span.font_56)이 있는 것만,
+            # "다운로드"/"뷰어보기" 보조 링크와 중복 href는 제외
             files = []
-            for f in soup.select('.fileList a'):
-                href = f.get('href', '')
+            seen_urls = set()
+            for a in soup.select('a[href*="download.do"]'):
+                href = a.get('href', '')
                 if not href:
                     continue
-                files.append({
-                    'name': f.get_text(strip=True),
-                    'url': urllib.parse.urljoin(RSS_BASE_URL, href)
-                })
+                url = urllib.parse.urljoin(RSS_BASE_URL, href)
+                if url in seen_urls:
+                    continue
+                span = a.select_one('span.font_56')
+                name = span.get_text(strip=True) if span else a.get_text(strip=True)
+                if not name or name in ("다운로드", "뷰어보기"):
+                    continue
+                seen_urls.add(url)
+                files.append({'name': name, 'url': url})
             item['attachments'] = files
 
             print(f"  -> 상세 데이터 수집 완료 (날짜: {item['date']}, 첨부 {len(files)}개): {item['title'][:15]}")
@@ -136,3 +143,5 @@ def get_post_detail(item):
                     item['date'] = "1970-01-01"
                 return item
             time.sleep(5.0)
+
+# END OF FILE
