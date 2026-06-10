@@ -1,4 +1,4 @@
-name: KMCC Monitor
+name: KMCC Note
 
 on:
   schedule:
