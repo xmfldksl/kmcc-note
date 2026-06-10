@@ -1,0 +1,42 @@
+name: KMCC Monitor
+
+on:
+  schedule:
+    - cron: '0 3 * * 1-5'   # KST 12:00, 월-금 (UTC 03:00)
+  workflow_dispatch:          # 수동 실행 버튼 (테스트용)
+
+permissions:
+  contents: write             # seen_posts.txt 자동 커밋에 필요
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 파이썬 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: 모니터링 실행
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: python -m src.main
+
+      - name: 발송 기록 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add seen_posts.txt
+          git diff --cached --quiet || git commit -m "update seen_posts [skip ci]"
+          git push
