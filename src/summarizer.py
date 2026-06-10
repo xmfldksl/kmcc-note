@@ -87,3 +87,34 @@ def summarize(item):
             if result:
                 item['summary_docs'].append({
                     'doc_name': doc['doc_name'],
+                    'file_name': doc['file_name'],
+                    'url': doc['url'],
+                    'summary': result,
+                })
+                if len(documents) > 1:
+                    sections.append(f"【{doc['doc_name']}】\n{result}")
+                else:
+                    sections.append(result)
+        if sections:
+            return "\n\n".join(sections)
+
+    # --- 2순위: 게시글 본문 요약 ---
+    content = (item.get('content') or '').strip()
+    if content:
+        prompt = PROMPT_TEMPLATE.format(
+            board=item.get('board_name', ''),
+            title=item.get('title', ''),
+            doc_name="게시글 본문",
+            text=content[:10000],
+        )
+        print("    -> Gemini 요약 요청: 게시글 본문")
+        result = _call_gemini(prompt)
+        time.sleep(GEMINI_CALL_INTERVAL)
+        if result:
+            return result
+
+    # --- 3순위: 본문 앞부분 (기존 방식) ---
+    print("    -> Gemini 요약 실패, 본문 앞부분으로 대체")
+    return content[:500] if content else "(내용 없음)"
+
+# END OF FILE
