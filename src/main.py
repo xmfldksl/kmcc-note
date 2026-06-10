@@ -23,6 +23,11 @@ def main():
     for name, params in BOARDS.items():
         posts = get_post_list(name, params)
         for p in posts:
+            # --- 1차 필터: 목록의 등록일이 기준보다 오래되면 상세 접속 없이 건너뜀 ---
+            list_date = p.get('date')
+            if list_date and list_date < yesterday_str:
+                continue
+
             detail_item = get_post_detail(p)
             post_date = detail_item.get('date', '1970-01-01')
 
@@ -81,3 +86,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# END OF FILE

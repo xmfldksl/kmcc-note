@@ -17,6 +17,36 @@ DEFAULT_HEADERS = {
 }
 
 PROXY = None
+REQUEST_TIMEOUT = 60  # 응답 대기시간(초)
+
+
+def _extract_row_date(cols):
+    """목록 행의 셀들에서 YYYY-MM-DD 형식의 등록일을 찾는다."""
+    for td in cols:
+        txt = td.get_text(strip=True)
+        if re.fullmatch(r'\d{4}-\d{2}-\d{2}', txt):
+            return txt
+    return None
+
+
+def _extract_row_attachments(row):
+    """목록 행에서 첨부파일 링크를 수집한다 (파일명은 아이콘 img의 alt)."""
+    files = []
+    seen_urls = set()
+    for a in row.select('a[href*="download.do"]'):
+        href = a.get('href', '')
+        if not href:
+            continue
+        url = urllib.parse.urljoin(RSS_BASE_URL, href)
+        if url in seen_urls:
+            continue
+        img = a.select_one('img')
+        name = img.get('alt', '').strip() if img else a.get_text(strip=True)
+        if not name:
+            continue
+        seen_urls.add(url)
+        files.append({'name': name, 'url': url})
+    return files
 
 
 def get_post_list(board_name, params):
@@ -31,7 +61,7 @@ def get_post_list(board_name, params):
                 impersonate="chrome116",
                 headers=DEFAULT_HEADERS,
                 proxies=PROXY,
-                timeout=30,
+                timeout=REQUEST_TIMEOUT,
                 verify=False
             )
 
@@ -55,11 +85,12 @@ def get_post_list(board_name, params):
                     posts.append({
                         'board_name': board_name, 'title': title, 'url': link,
                         'content': f"안건번호: {cols[1].get_text(strip=True)}",
-                        'attachments': [], 'date': date_val, 'is_direct': True
+                        'attachments': _extract_row_attachments(row),
+                        'date': date_val, 'is_direct': True
                     })
                 else:
-                    # 일반 게시판 처리
-                    a_tag = row.select_one('a')
+                    # 일반 게시판 처리: 목록에서 날짜와 첨부파일까지 수집
+                    a_tag = row.select_one('a[href*="boardSeq"]') or row.select_one('a')
                     if not a_tag:
                         continue
 
@@ -69,7 +100,10 @@ def get_post_list(board_name, params):
 
                     posts.append({
                         'board_name': board_name, 'title': title, 'url': link,
-                        'content': "", 'attachments': [], 'date': None, 'is_direct': False
+                        'content': "",
+                        'attachments': _extract_row_attachments(row),
+                        'date': _extract_row_date(cols),
+                        'is_direct': False
                     })
 
             print(f"[{board_name}] {len(posts)}개 항목 수집 완료")
@@ -96,7 +130,7 @@ def get_post_detail(item):
                 impersonate="chrome116",
                 headers=DEFAULT_HEADERS,
                 proxies=PROXY,
-                timeout=30,
+                timeout=REQUEST_TIMEOUT,
                 verify=False
             )
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -109,14 +143,13 @@ def get_post_detail(item):
             date_match = re.search(r'(등록일|작성일).*?(\d{4}-\d{2}-\d{2})', content_after_title)
             if date_match:
                 item['date'] = date_match.group(2)
-            else:
+            elif not item.get('date'):
                 backup_match = re.search(r'(\d{4}-\d{2}-\d{2})', raw_text)
                 item['date'] = backup_match.group(1) if backup_match else "1970-01-01"
 
             item['content'] = content_after_title.strip()
 
-            # 첨부파일 수집: download.do 링크 중 파일명(span.font_56)이 있는 것만,
-            # "다운로드"/"뷰어보기" 보조 링크와 중복 href는 제외
+            # 첨부파일: 상세 페이지에서 더 정확한 파일명(span.font_56)으로 수집되면 교체
             files = []
             seen_urls = set()
             for a in soup.select('a[href*="download.do"]'):
@@ -132,9 +165,10 @@ def get_post_detail(item):
                     continue
                 seen_urls.add(url)
                 files.append({'name': name, 'url': url})
-            item['attachments'] = files
+            if files:
+                item['attachments'] = files
 
-            print(f"  -> 상세 데이터 수집 완료 (날짜: {item['date']}, 첨부 {len(files)}개): {item['title'][:15]}")
+            print(f"  -> 상세 데이터 수집 완료 (날짜: {item['date']}, 첨부 {len(item['attachments'])}개): {item['title'][:15]}")
             return item
         except Exception as e:
             print(f"  -> 상세 페이지 접속 에러 (시도 {attempt}/{max_retries}): {e}")
