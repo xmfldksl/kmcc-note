@@ -6,6 +6,8 @@ NOTION_API_BASE = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"  # 단일 데이터 소스 DB는 이 버전으로 안정 동작
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 노션 무료 플랜 파일 업로드 한도(5MiB) 보호
 
+OLE_SIGNATURE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
 
 def _headers(token):
     return {
@@ -18,6 +20,19 @@ def _headers(token):
 def _split_text(text, size=1800):
     """노션 블록 글자 수 제한(2000자)에 맞춰 텍스트를 나눈다."""
     return [text[i:i + size] for i in range(0, len(text), size)] or [""]
+
+
+def _ensure_extension(filename, data):
+    """파일명에 확장자가 없으면 내용 시그니처로 판별해 붙인다."""
+    if os.path.splitext(filename)[1]:
+        return filename
+    if data[:5] == b"%PDF-":
+        return filename + ".pdf"
+    if data[:2] == b"PK":
+        return filename + ".hwpx"
+    if data[:8] == OLE_SIGNATURE:
+        return filename + ".hwp"
+    return filename + ".bin"
 
 
 def _already_exists(token, database_id, item):
@@ -43,12 +58,17 @@ def _already_exists(token, database_id, item):
 
 
 def _upload_file(token, filename, data):
-    """노션 파일 업로드 API로 파일을 올리고 file_upload ID를 반환한다. 실패 시 None."""
+    """노션 파일 업로드 API로 파일을 올리고 file_upload ID를 반환한다. 실패 시 None.
+
+    전송 단계의 파일 형식은 생성 응답에 등록된 content_type을 그대로 사용해
+    형식 불일치 오류를 방지한다.
+    """
     if not data:
         return None
     if len(data) > MAX_UPLOAD_BYTES:
         print(f"[Notion] 파일이 업로드 한도(5MiB) 초과, 링크로 대체: {filename[:30]}")
         return None
+    filename = _ensure_extension(filename, data)
     try:
         resp = requests.post(
             f"{NOTION_API_BASE}/file_uploads",
@@ -59,7 +79,10 @@ def _upload_file(token, filename, data):
         if resp.status_code != 200:
             print(f"[Notion] 업로드 생성 실패 (HTTP {resp.status_code}): {resp.text[:150]}")
             return None
-        upload_id = resp.json()["id"]
+        upload_info = resp.json()
+        upload_id = upload_info["id"]
+        # 노션이 등록한 형식을 그대로 사용 (불일치 방지)
+        content_type = upload_info.get("content_type") or "application/octet-stream"
 
         send_headers = {
             "Authorization": f"Bearer {token}",
@@ -68,7 +91,7 @@ def _upload_file(token, filename, data):
         resp2 = requests.post(
             f"{NOTION_API_BASE}/file_uploads/{upload_id}/send",
             headers=send_headers,
-            files={"file": (filename, data)},
+            files={"file": (filename, data, content_type)},
             timeout=120,
         )
         if resp2.status_code == 200:
@@ -80,8 +103,8 @@ def _upload_file(token, filename, data):
     return None
 
 
-def _build_children(item, uploaded):
-    """페이지 본문 블록: 요약 전체 + 업로드된 첨부파일 + 원본 문서 링크 목록."""
+def _build_children(item, uploaded, link_docs):
+    """페이지 본문 블록: 요약 전체 + 업로드된 첨부파일 + (업로드 실패분만) 원본 문서 링크."""
     children = []
 
     # 요약 본문
@@ -107,14 +130,13 @@ def _build_children(item, uploaded):
                 "file": {"type": "file_upload", "file_upload": {"id": upload_id}}
             })
 
-    # 원본 문서 링크
-    docs = item.get('summary_docs', [])
-    if docs:
+    # 업로드에 실패한 문서만 원본 링크로 표시
+    if link_docs:
         children.append({
             "object": "block", "type": "heading_2",
             "heading_2": {"rich_text": [{"text": {"content": "원본 문서 링크"}}]}
         })
-        for doc in docs:
+        for doc in link_docs:
             children.append({
                 "object": "block", "type": "bulleted_list_item",
                 "bulleted_list_item": {"rich_text": [{
@@ -133,6 +155,7 @@ def archive_to_notion(items):
 
     - 적재 전 제목+날짜 기준으로 중복 조회 후 건너뜀
     - 첨부 문서 파일을 페이지 본문에 직접 업로드 (5MiB 이하)
+    - 업로드 실패한 문서만 원본 다운로드 링크로 표시
     - 생성된 페이지의 노션 주소를 '요약보기' 속성에 기록
     - 노션 장애가 메일 발송을 막지 않도록 실패 시 로그만 남긴다
     """
@@ -149,12 +172,15 @@ def archive_to_notion(items):
                 print(f"[Notion] 이미 존재하여 건너뜀: {item.get('title', '')[:20]}")
                 continue
 
-            # --- 첨부파일 업로드 ---
+            # --- 첨부파일 업로드 (실패분은 링크 표시 대상으로 분류) ---
             uploaded = []
+            link_docs = []
             for doc in item.get('summary_docs', []):
                 upload_id = _upload_file(token, doc['file_name'], doc.get('data'))
                 if upload_id:
                     uploaded.append(upload_id)
+                else:
+                    link_docs.append(doc)
                 time.sleep(0.5)
 
             # --- 페이지 생성 ---
@@ -173,7 +199,7 @@ def archive_to_notion(items):
             payload = {
                 "parent": {"database_id": database_id},
                 "properties": properties,
-                "children": _build_children(item, uploaded),
+                "children": _build_children(item, uploaded, link_docs),
             }
 
             resp = requests.post(

@@ -1,3 +1,4 @@
+import os
 import re
 from datetime import datetime, timedelta
 from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS
@@ -76,10 +77,15 @@ def main():
             new_seen_hashes.append(p_hash)
             print(f"  -> 신규 항목 수집: {modified_title[:15]}")
 
-    # --- 출력 1: 메일 발송 (최종 수집 실패 게시판 정보 포함) ---
-    if matched_items or SEND_EMPTY_MAIL:
+    # --- 출력 1: 메일 발송 (SKIP_MAIL=1이면 생략, 실패해도 노션 적재는 계속) ---
+    if os.getenv("SKIP_MAIL", "").strip() == "1":
+        print("메일 발송 생략 (SKIP_MAIL=1)")
+    elif matched_items or SEND_EMPTY_MAIL:
         print(f"메일 발송 시도: 발견된 항목 {len(matched_items)}건")
-        send_mail(matched_items, today_str, failed_boards=FAILED_BOARDS)
+        try:
+            send_mail(matched_items, today_str, failed_boards=FAILED_BOARDS)
+        except Exception as e:
+            print(f"메일 발송 실패 (노션 적재는 계속 진행): {e}")
     else:
         print(f"{yesterday_str} 이후 등록된 신규 항목이 없습니다.")
 

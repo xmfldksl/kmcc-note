@@ -1,6 +1,7 @@
 import io
 import re
 import html
+import hashlib
 import zipfile
 import zlib
 import struct
@@ -16,10 +17,29 @@ from src.crawler import DEFAULT_HEADERS, PROXY
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+OLE_SIGNATURE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+
+def _is_garbled(name):
+    """인코딩 깨짐(대체 문자 포함) 여부를 판별한다."""
+    return "\ufffd" in name
+
+
+def _sniff_ext(data):
+    """파일 내용의 시그니처(매직 바이트)로 형식을 판별한다."""
+    if data[:5] == b"%PDF-":
+        return ".pdf"
+    if data[:2] == b"PK":
+        return ".hwpx"  # ZIP 기반 (HWPX)
+    if data[:8] == OLE_SIGNATURE:
+        return ".hwp"   # OLE 기반 (HWP 5.0)
+    return None
+
 
 def group_documents(attachments):
     """첨부파일을 문서 단위(확장자 제외 파일명)로 묶고,
     각 문서마다 우선순위(PDF > HWPX > HWP)가 가장 높은 파일 1개를 고른다.
+    확장자를 알 수 없는 파일(파일명 깨짐 등)은 다운로드 후 시그니처로 판별한다(ext=None).
     """
     groups = {}
     for att in attachments:
@@ -32,6 +52,7 @@ def group_documents(attachments):
         groups.setdefault(base, []).append({'name': name, 'url': att['url'], 'ext': ext})
 
     selected = []
+    unknown_count = 0
     for base, files in groups.items():
         chosen = None
         for ext in ATTACHMENT_PRIORITY:
@@ -41,15 +62,23 @@ def group_documents(attachments):
                     break
             if chosen:
                 break
-        if chosen:
-            selected.append({
-                'doc_name': base,
-                'name': chosen['name'],
-                'url': chosen['url'],
-                'ext': chosen['ext'],
-            })
-        else:
-            print(f"    -> [건너뜀] 지원 형식 아님: {base[:30]}")
+
+        if chosen is None:
+            # 확장자 매칭 실패: 깨진 파일명 등 → 내용 시그니처로 판별하기 위해 포함
+            chosen = dict(files[0])
+            chosen['ext'] = None
+
+        doc_name = base
+        if _is_garbled(doc_name):
+            unknown_count += 1
+            doc_name = f"첨부문서 {unknown_count}"
+
+        selected.append({
+            'doc_name': doc_name,
+            'name': chosen['name'] if not _is_garbled(chosen['name']) else doc_name,
+            'url': chosen['url'],
+            'ext': chosen['ext'],
+        })
     return selected
 
 
@@ -155,7 +184,9 @@ def extract_hwp_text(data):
 def get_document_texts(item):
     """게시글의 모든 첨부 문서(문서 단위)에서 텍스트를 추출한다.
 
-    각 결과에 원본 파일 바이트(data)도 포함해 노션 업로드에 재사용한다.
+    - 확장자 불명 파일은 시그니처로 형식 판별
+    - 같은 내용의 중복 문서(형식만 다른 경우)는 1개만 사용
+    - 각 결과에 원본 파일 바이트(data)도 포함 (노션 업로드 재사용)
     """
     attachments = item.get('attachments', [])
     if not attachments:
@@ -163,6 +194,7 @@ def get_document_texts(item):
 
     documents = group_documents(attachments)
     results = []
+    seen_text_keys = set()
 
     for doc in documents:
         print(f"    -> 첨부파일 다운로드: {doc['name'][:30]}")
@@ -170,15 +202,20 @@ def get_document_texts(item):
         if data is None:
             continue
 
+        ext = doc['ext'] or _sniff_ext(data)
+        if ext not in (".pdf", ".hwpx", ".hwp"):
+            print(f"    -> [건너뜀] 지원하지 않는 파일 형식: {doc['name'][:30]}")
+            continue
+
         try:
-            if doc['ext'] == ".pdf":
+            if ext == ".pdf":
                 text = extract_pdf_text(data)
-            elif doc['ext'] == ".hwpx":
+            elif ext == ".hwpx":
                 text = extract_hwpx_text(data)
             else:
                 text = extract_hwp_text(data)
         except Exception as e:
-            print(f"    -> 텍스트 추출 실패 ({doc['ext']}): {e}")
+            print(f"    -> 텍스트 추출 실패 ({ext}): {e}")
             continue
 
         text = re.sub(r"\s{3,}", " ", text).strip()
@@ -188,6 +225,13 @@ def get_document_texts(item):
 
         if len(text) > MAX_EXTRACT_CHARS:
             text = text[:MAX_EXTRACT_CHARS]
+
+        # 같은 내용(형식만 다른 중복 문서)은 1개만 사용
+        text_key = hashlib.sha256(text[:1000].encode("utf-8")).hexdigest()
+        if text_key in seen_text_keys:
+            print(f"    -> [건너뜀] 동일 내용의 중복 문서: {doc['doc_name'][:20]}")
+            continue
+        seen_text_keys.add(text_key)
 
         print(f"    -> 텍스트 추출 완료 ({len(text)}자): {doc['doc_name'][:20]}")
         results.append({
