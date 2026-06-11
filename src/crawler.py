@@ -65,7 +65,7 @@ def get_post_list(board_name, params):
                 verify=False
             )
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.content, 'html.parser')
             rows = soup.select('table tbody tr')
 
             if not rows:
@@ -133,7 +133,7 @@ def get_post_detail(item):
                 timeout=REQUEST_TIMEOUT,
                 verify=False
             )
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.content, 'html.parser')
 
             content_area = soup.select_one('.view_con') or soup.select_one('#contents') or soup.select_one('.board_view')
             raw_text = content_area.get_text(strip=True) if content_area else soup.get_text(strip=True)

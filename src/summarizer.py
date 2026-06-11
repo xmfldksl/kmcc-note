@@ -50,6 +50,11 @@ def _call_gemini(prompt):
                 print(f"    -> Gemini 속도 제한(429), 60초 대기 (시도 {attempt}/{max_retries})")
                 time.sleep(60)
                 continue
+            elif resp.status_code >= 500:
+                # 서버 과부하/일시 장애: 30초 대기 후 재시도
+                print(f"    -> Gemini 서버 오류({resp.status_code}), 30초 대기 (시도 {attempt}/{max_retries})")
+                time.sleep(30)
+                continue
             else:
                 print(f"    -> Gemini 오류 (HTTP {resp.status_code}): {resp.text[:200]}")
         except Exception as e:
@@ -62,7 +67,7 @@ def _call_gemini(prompt):
 def summarize(item):
     """게시글의 요약문을 생성한다.
 
-    1순위: 첨부 문서(PDF/HWPX)별 Gemini 요약 (문서가 여러 개면 각각 요약 후 합침)
+    1순위: 첨부 문서(PDF/HWPX/HWP)별 Gemini 요약 (문서가 여러 개면 각각 요약 후 합침)
     2순위: 게시글 본문 Gemini 요약
     3순위: 게시글 본문 앞 500자 (기존 방식)
     부수 효과: item['summary_docs']에 문서별 요약·원본 링크를 저장 (메일/노션용)
