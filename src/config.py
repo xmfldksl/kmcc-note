@@ -43,4 +43,4 @@ MAX_EXTRACT_CHARS = 30000
 # Gemini 호출 사이 대기 시간(초): 무료 등급 분당 요청 제한 회피
 GEMINI_CALL_INTERVAL = 7
 # 첨부파일 처리 우선순위 (앞에 있을수록 우선)
-ATTACHMENT_PRIORITY = [".pdf", ".hwpx"]
+ATTACHMENT_PRIORITY = [".pdf", ".hwpx", ".hwp"]
