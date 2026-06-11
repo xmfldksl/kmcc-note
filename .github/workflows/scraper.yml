@@ -3,7 +3,12 @@ name: KMCC Note
 on:
   schedule:
     - cron: '0 3 * * 1-5'   # KST 12:00, 월-금 (UTC 03:00)
-  workflow_dispatch:          # 수동 실행 버튼 (테스트용)
+  workflow_dispatch:          # 수동 실행 버튼
+    inputs:
+      test_boards:
+        description: '테스트할 게시판 이름 (쉼표 구분, 비우면 전체 실행). 예: 의사일정,보도자료'
+        required: false
+        default: ''
 
 permissions:
   contents: write             # seen_posts.txt 자동 커밋에 필요
@@ -31,6 +36,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          TEST_BOARDS: ${{ github.event.inputs.test_boards }}
         run: python -m src.main
 
       - name: 발송 기록 커밋

@@ -19,6 +19,9 @@ DEFAULT_HEADERS = {
 PROXY = None
 REQUEST_TIMEOUT = 60  # 응답 대기시간(초)
 
+# 이번 실행에서 목록 수집이 최종 실패(연결 오류)한 게시판 이름 목록
+FAILED_BOARDS = []
+
 
 def _extract_row_date(cols):
     """목록 행의 셀들에서 YYYY-MM-DD 형식의 등록일을 찾는다."""
@@ -69,7 +72,7 @@ def get_post_list(board_name, params):
             rows = soup.select('table tbody tr')
 
             if not rows:
-                print(f"[{board_name}] 게시글 목록 추출 실패")
+                print(f"[{board_name}] 게시글 없음 또는 목록 추출 실패")
                 return []
 
             posts = []
@@ -111,6 +114,7 @@ def get_post_list(board_name, params):
         except Exception as e:
             print(f"[{board_name}] 목록 수집 에러 (시도 {attempt}/{max_retries}): {e}")
             if attempt == max_retries:
+                FAILED_BOARDS.append(board_name)
                 return []
             time.sleep(5.0)
 

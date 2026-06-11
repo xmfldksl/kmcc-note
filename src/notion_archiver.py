@@ -133,7 +133,7 @@ def archive_to_notion(items):
 
     - 적재 전 제목+날짜 기준으로 중복 조회 후 건너뜀
     - 첨부 문서 파일을 페이지 본문에 직접 업로드 (5MiB 이하)
-    - 생성된 페이지의 노션 주소를 '본문 보기' 속성에 기록
+    - 생성된 페이지의 노션 주소를 '요약보기' 속성에 기록
     - 노션 장애가 메일 발송을 막지 않도록 실패 시 로그만 남긴다
     """
     token = os.getenv("NOTION_TOKEN")
@@ -187,19 +187,19 @@ def archive_to_notion(items):
             page = resp.json()
             print(f"[Notion] 적재 완료: {item.get('title', '')[:20]}")
 
-            # --- '본문 보기' 속성에 페이지 자신의 주소 기록 ---
+            # --- '요약보기' 속성에 페이지 자신의 주소 기록 ---
             page_id = page.get("id")
             page_url = page.get("url")
             if page_id and page_url:
                 resp2 = requests.patch(
                     f"{NOTION_API_BASE}/pages/{page_id}",
                     headers=_headers(token),
-                    json={"properties": {"본문 보기": {"url": page_url}}},
+                    json={"properties": {"요약보기": {"url": page_url}}},
                     timeout=60,
                 )
                 if resp2.status_code != 200:
-                    print(f"[Notion] 본문 보기 링크 기록 실패 (HTTP {resp2.status_code}): "
-                          f"노션 표에 '본문 보기' URL 속성이 있는지 확인 필요")
+                    print(f"[Notion] 요약보기 링크 기록 실패 (HTTP {resp2.status_code}): "
+                          f"노션 표에 '요약보기' URL 속성이 있는지 확인 필요")
         except Exception as e:
             print(f"[Notion] 호출 에러: {e}")
         time.sleep(0.5)  # 노션 API 초당 요청 제한(평균 3회) 보호

@@ -24,6 +24,9 @@ EXCLUDE_KEYWORDS = []
 
 SEND_EMPTY_MAIL = True
 
+# --- 테스트 모드: 쉼표로 구분된 게시판 이름이 있으면 해당 게시판만 실행 ---
+TEST_BOARDS = os.getenv("TEST_BOARDS", "").strip()
+
 # --- 메일 설정 ---
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
@@ -31,7 +34,7 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_APP_PASSWORD = os.getenv("SMTP_APP_PASSWORD")
 MAIL_TO = os.getenv("MAIL_TO")
 
-# --- Gemini 요약 설정 (신규) ---
+# --- Gemini 요약 설정 ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_API_URL = (
@@ -44,3 +47,5 @@ MAX_EXTRACT_CHARS = 30000
 GEMINI_CALL_INTERVAL = 7
 # 첨부파일 처리 우선순위 (앞에 있을수록 우선)
 ATTACHMENT_PRIORITY = [".pdf", ".hwpx", ".hwp"]
+
+# END OF FILE

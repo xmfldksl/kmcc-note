@@ -39,8 +39,8 @@ def _build_item_html(item):
     """
 
 
-def send_mail(items, today_str):
-    """수집 결과를 HTML 메일로 발송한다."""
+def send_mail(items, today_str, failed_boards=None):
+    """수집 결과를 HTML 메일로 발송한다. 최종 수집 실패 게시판은 본문 맨 아래에 표시."""
     if items:
         subject = f"[KMCC] {today_str} 신규 {len(items)}건"
         body_items = "".join(_build_item_html(i) for i in items)
@@ -48,10 +48,21 @@ def send_mail(items, today_str):
         subject = f"[KMCC] {today_str} 신규 항목 없음"
         body_items = "<p>기준 기간 내 신규 등록된 항목이 없습니다.</p>"
 
+    fail_html = ""
+    if failed_boards:
+        fail_list = html.escape(", ".join(failed_boards))
+        fail_html = (
+            f"<hr style='border:none;border-top:1px solid #eee;margin:18px 0 8px 0'>"
+            f"<p style='color:#c00;font-size:12px;margin:0'>"
+            f"수집 실패 게시판: {fail_list}<br>"
+            f"(네트워크 차단 또는 사이트 장애 가능성 — 해당 게시판의 신규 글이 누락되었을 수 있습니다)</p>"
+        )
+
     body = f"""
     <html><body style="font-family:'Malgun Gothic',sans-serif;max-width:680px">
       <h2 style="font-size:17px">KMCC 모니터링 결과 ({today_str})</h2>
       {body_items}
+      {fail_html}
     </body></html>
     """
 
@@ -69,3 +80,5 @@ def send_mail(items, today_str):
         server.sendmail(SMTP_USER, recipients, msg.as_string())
 
     print(f"메일 발송 완료: {subject} -> {len(recipients)}명")
+
+# END OF FILE

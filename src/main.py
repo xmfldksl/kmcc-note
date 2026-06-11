@@ -1,7 +1,7 @@
 import re
 from datetime import datetime, timedelta
-from src.config import BOARDS, SEND_EMPTY_MAIL
-from src.crawler import get_post_list, get_post_detail
+from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS
+from src.crawler import get_post_list, get_post_detail, FAILED_BOARDS
 from src.storage import load_seen, save_seen, get_hash
 from src.filter import check_keywords
 from src.summarizer import summarize
@@ -18,9 +18,16 @@ def main():
     today_str = kst_now.strftime('%Y-%m-%d')
     yesterday_str = (kst_now - timedelta(days=1)).strftime('%Y-%m-%d')
 
+    # --- 테스트 모드: 지정된 게시판만 실행 ---
+    boards = BOARDS
+    if TEST_BOARDS:
+        names = [n.strip() for n in TEST_BOARDS.split(",") if n.strip()]
+        boards = {k: v for k, v in BOARDS.items() if k in names}
+        print(f"테스트 모드: {list(boards.keys())}만 실행")
+
     print(f"KMCC 모니터링 시작 (기준 날짜: {yesterday_str} 이후)")
 
-    for name, params in BOARDS.items():
+    for name, params in boards.items():
         posts = get_post_list(name, params)
         for p in posts:
             # --- 1차 필터: 목록의 등록일이 기준보다 오래되면 상세 접속 없이 건너뜀 ---
@@ -69,10 +76,10 @@ def main():
             new_seen_hashes.append(p_hash)
             print(f"  -> 신규 항목 수집: {modified_title[:15]}")
 
-    # --- 출력 1: 메일 발송 ---
+    # --- 출력 1: 메일 발송 (최종 수집 실패 게시판 정보 포함) ---
     if matched_items or SEND_EMPTY_MAIL:
         print(f"메일 발송 시도: 발견된 항목 {len(matched_items)}건")
-        send_mail(matched_items, today_str)
+        send_mail(matched_items, today_str, failed_boards=FAILED_BOARDS)
     else:
         print(f"{yesterday_str} 이후 등록된 신규 항목이 없습니다.")
 
