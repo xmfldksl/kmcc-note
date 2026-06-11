@@ -2,8 +2,17 @@ import os
 import time
 import requests
 
-NOTION_API_URL = "https://api.notion.com/v1/pages"
+NOTION_API_BASE = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"  # 단일 데이터 소스 DB는 이 버전으로 안정 동작
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 노션 무료 플랜 파일 업로드 한도(5MiB) 보호
+
+
+def _headers(token):
+    return {
+        "Authorization": f"Bearer {token}",
+        "Notion-Version": NOTION_VERSION,
+        "Content-Type": "application/json",
+    }
 
 
 def _split_text(text, size=1800):
@@ -11,8 +20,68 @@ def _split_text(text, size=1800):
     return [text[i:i + size] for i in range(0, len(text), size)] or [""]
 
 
-def _build_children(item):
-    """페이지 본문 블록: 요약 전체 + 원본 문서 링크 목록."""
+def _already_exists(token, database_id, item):
+    """같은 제목+날짜의 페이지가 이미 있는지 데이터베이스에서 조회한다."""
+    payload = {
+        "filter": {"and": [
+            {"property": "제목", "title": {"equals": item.get('title', '')[:200]}},
+            {"property": "날짜", "date": {"equals": item.get('date', '1970-01-01')}},
+        ]},
+        "page_size": 1,
+    }
+    try:
+        resp = requests.post(
+            f"{NOTION_API_BASE}/databases/{database_id}/query",
+            headers=_headers(token), json=payload, timeout=60
+        )
+        if resp.status_code == 200:
+            return len(resp.json().get("results", [])) > 0
+        print(f"[Notion] 중복 조회 실패 (HTTP {resp.status_code}), 적재는 계속 진행")
+    except Exception as e:
+        print(f"[Notion] 중복 조회 에러: {e}")
+    return False
+
+
+def _upload_file(token, filename, data):
+    """노션 파일 업로드 API로 파일을 올리고 file_upload ID를 반환한다. 실패 시 None."""
+    if not data:
+        return None
+    if len(data) > MAX_UPLOAD_BYTES:
+        print(f"[Notion] 파일이 업로드 한도(5MiB) 초과, 링크로 대체: {filename[:30]}")
+        return None
+    try:
+        resp = requests.post(
+            f"{NOTION_API_BASE}/file_uploads",
+            headers=_headers(token),
+            json={"filename": filename[:900]},
+            timeout=60,
+        )
+        if resp.status_code != 200:
+            print(f"[Notion] 업로드 생성 실패 (HTTP {resp.status_code}): {resp.text[:150]}")
+            return None
+        upload_id = resp.json()["id"]
+
+        send_headers = {
+            "Authorization": f"Bearer {token}",
+            "Notion-Version": NOTION_VERSION,
+        }
+        resp2 = requests.post(
+            f"{NOTION_API_BASE}/file_uploads/{upload_id}/send",
+            headers=send_headers,
+            files={"file": (filename, data)},
+            timeout=120,
+        )
+        if resp2.status_code == 200:
+            print(f"[Notion] 파일 업로드 완료: {filename[:30]}")
+            return upload_id
+        print(f"[Notion] 파일 전송 실패 (HTTP {resp2.status_code}): {resp2.text[:150]}")
+    except Exception as e:
+        print(f"[Notion] 파일 업로드 에러: {e}")
+    return None
+
+
+def _build_children(item, uploaded):
+    """페이지 본문 블록: 요약 전체 + 업로드된 첨부파일 + 원본 문서 링크 목록."""
     children = []
 
     # 요약 본문
@@ -26,12 +95,24 @@ def _build_children(item):
             "paragraph": {"rich_text": [{"text": {"content": chunk}}]}
         })
 
+    # 업로드된 첨부파일
+    if uploaded:
+        children.append({
+            "object": "block", "type": "heading_2",
+            "heading_2": {"rich_text": [{"text": {"content": "첨부파일"}}]}
+        })
+        for upload_id in uploaded:
+            children.append({
+                "object": "block", "type": "file",
+                "file": {"type": "file_upload", "file_upload": {"id": upload_id}}
+            })
+
     # 원본 문서 링크
     docs = item.get('summary_docs', [])
     if docs:
         children.append({
             "object": "block", "type": "heading_2",
-            "heading_2": {"rich_text": [{"text": {"content": "원본 문서"}}]}
+            "heading_2": {"rich_text": [{"text": {"content": "원본 문서 링크"}}]}
         })
         for doc in docs:
             children.append({
@@ -50,8 +131,10 @@ def _build_children(item):
 def archive_to_notion(items):
     """필터를 통과한 수집 항목들을 노션 데이터베이스에 적재한다.
 
-    노션 장애가 메일 발송을 막지 않도록 실패 시 로그만 남긴다.
-    속성 구성: 게시판(선택) / 제목(타이틀) / 날짜 / 키워드(다중선택) / 링크(URL)
+    - 적재 전 제목+날짜 기준으로 중복 조회 후 건너뜀
+    - 첨부 문서 파일을 페이지 본문에 직접 업로드 (5MiB 이하)
+    - 생성된 페이지의 노션 주소를 '본문 보기' 속성에 기록
+    - 노션 장애가 메일 발송을 막지 않도록 실패 시 로그만 남긴다
     """
     token = os.getenv("NOTION_TOKEN")
     database_id = os.getenv("NOTION_DATABASE_ID")
@@ -59,37 +142,66 @@ def archive_to_notion(items):
         print("[Notion] 토큰 또는 DB ID 미설정, 적재 건너뜀")
         return
 
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Notion-Version": NOTION_VERSION,
-        "Content-Type": "application/json",
-    }
-
     for item in items:
-        properties = {
-            "게시판": {"select": {"name": item.get('board_name', '기타')}},
-            "제목": {"title": [{"text": {"content": item.get('title', '')[:200]}}]},
-            "날짜": {"date": {"start": item.get('date', '1970-01-01')}},
-            "링크": {"url": item.get('url') or None},
-        }
-        keywords = item.get('matched_keywords', [])
-        if keywords:
-            properties["키워드"] = {
-                "multi_select": [{"name": kw} for kw in keywords]
+        try:
+            # --- 중복 체크 ---
+            if _already_exists(token, database_id, item):
+                print(f"[Notion] 이미 존재하여 건너뜀: {item.get('title', '')[:20]}")
+                continue
+
+            # --- 첨부파일 업로드 ---
+            uploaded = []
+            for doc in item.get('summary_docs', []):
+                upload_id = _upload_file(token, doc['file_name'], doc.get('data'))
+                if upload_id:
+                    uploaded.append(upload_id)
+                time.sleep(0.5)
+
+            # --- 페이지 생성 ---
+            properties = {
+                "게시판": {"select": {"name": item.get('board_name', '기타')}},
+                "제목": {"title": [{"text": {"content": item.get('title', '')[:200]}}]},
+                "날짜": {"date": {"start": item.get('date', '1970-01-01')}},
+                "링크": {"url": item.get('url') or None},
+            }
+            keywords = item.get('matched_keywords', [])
+            if keywords:
+                properties["키워드"] = {
+                    "multi_select": [{"name": kw} for kw in keywords]
+                }
+
+            payload = {
+                "parent": {"database_id": database_id},
+                "properties": properties,
+                "children": _build_children(item, uploaded),
             }
 
-        payload = {
-            "parent": {"database_id": database_id},
-            "properties": properties,
-            "children": _build_children(item),
-        }
-
-        try:
-            resp = requests.post(NOTION_API_URL, headers=headers, json=payload, timeout=60)
-            if resp.status_code == 200:
-                print(f"[Notion] 적재 완료: {item.get('title', '')[:20]}")
-            else:
+            resp = requests.post(
+                f"{NOTION_API_BASE}/pages",
+                headers=_headers(token), json=payload, timeout=60
+            )
+            if resp.status_code != 200:
                 print(f"[Notion] 적재 실패 (HTTP {resp.status_code}): {resp.text[:200]}")
+                continue
+
+            page = resp.json()
+            print(f"[Notion] 적재 완료: {item.get('title', '')[:20]}")
+
+            # --- '본문 보기' 속성에 페이지 자신의 주소 기록 ---
+            page_id = page.get("id")
+            page_url = page.get("url")
+            if page_id and page_url:
+                resp2 = requests.patch(
+                    f"{NOTION_API_BASE}/pages/{page_id}",
+                    headers=_headers(token),
+                    json={"properties": {"본문 보기": {"url": page_url}}},
+                    timeout=60,
+                )
+                if resp2.status_code != 200:
+                    print(f"[Notion] 본문 보기 링크 기록 실패 (HTTP {resp2.status_code}): "
+                          f"노션 표에 '본문 보기' URL 속성이 있는지 확인 필요")
         except Exception as e:
             print(f"[Notion] 호출 에러: {e}")
         time.sleep(0.5)  # 노션 API 초당 요청 제한(평균 3회) 보호
+
+# END OF FILE

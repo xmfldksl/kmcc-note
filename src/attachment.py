@@ -153,7 +153,10 @@ def extract_hwp_text(data):
 
 
 def get_document_texts(item):
-    """게시글의 모든 첨부 문서(문서 단위)에서 텍스트를 추출한다."""
+    """게시글의 모든 첨부 문서(문서 단위)에서 텍스트를 추출한다.
+
+    각 결과에 원본 파일 바이트(data)도 포함해 노션 업로드에 재사용한다.
+    """
     attachments = item.get('attachments', [])
     if not attachments:
         return []
@@ -192,6 +195,7 @@ def get_document_texts(item):
             'file_name': doc['name'],
             'url': doc['url'],
             'text': text,
+            'data': data,
         })
 
     return results

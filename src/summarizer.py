@@ -113,7 +113,7 @@ def summarize(item):
     2순위: 게시글 본문 Gemini 요약
     3순위: 게시글 본문 앞 500자 (기존 방식)
     회의 관련 문서(의사일정/회의록/속기록/N차 위원회)는 부서 공유 양식을 적용한다.
-    부수 효과: item['summary_docs']에 문서별 요약·원본 링크를 저장 (메일/노션용)
+    부수 효과: item['summary_docs']에 추출된 문서별 정보(요약, 원본 링크, 파일 데이터)를 저장.
     """
     item['summary_docs'] = []
 
@@ -137,13 +137,16 @@ def summarize(item):
             result = _call_gemini(prompt)
             time.sleep(GEMINI_CALL_INTERVAL)
 
+            # 요약 성공 여부와 무관하게 문서 정보는 기록 (링크/업로드용)
+            item['summary_docs'].append({
+                'doc_name': doc['doc_name'],
+                'file_name': doc['file_name'],
+                'url': doc['url'],
+                'data': doc.get('data'),
+                'summary': result,
+            })
+
             if result:
-                item['summary_docs'].append({
-                    'doc_name': doc['doc_name'],
-                    'file_name': doc['file_name'],
-                    'url': doc['url'],
-                    'summary': result,
-                })
                 if len(documents) > 1:
                     sections.append(f"【{doc['doc_name']}】\n{result}")
                 else:
