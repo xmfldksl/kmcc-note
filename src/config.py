@@ -19,13 +19,24 @@ BOARDS = {
 }
 
 HIGH_PRIORITY_KEYWORDS = ["홈쇼핑", "재승인", "T커머스", "티커머스", "GS샵", "GSSHOP", "GSMYSHOP"]
-INCLUDE_KEYWORDS = ["GS리테일", "지에스리테일", "GS홈쇼핑", "지에스홈쇼핑", "심사청문회", "방송채널사용사업자"]
+INCLUDE_KEYWORDS = [
+    "GS리테일", "지에스리테일", "GS홈쇼핑", "지에스홈쇼핑", "심사청문회", "방송채널사용사업자",
+    # 송출수수료 관련
+    "송출수수료", "송출 수수료", "대가산정", "유료방송",
+    # SO(종합유선방송) 관련
+    "유선방송", "케이블TV", "케이블방송", "재허가",
+    "LG헬로비전", "딜라이브", "SK브로드밴드", "HCN", "CMB",
+]
 EXCLUDE_KEYWORDS = []
 
 SEND_EMPTY_MAIL = True
 
 # --- 테스트 모드: 쉼표로 구분된 게시판 이름이 있으면 해당 게시판만 실행 ---
 TEST_BOARDS = os.getenv("TEST_BOARDS", "").strip()
+
+# --- 백필 모드: YYYY-MM-DD를 넣으면 그 날짜 이후 글을 페이지 넘김으로 전부 수집 ---
+# 비워두면 기존 동작 (1페이지, 어제 이후)
+BACKFILL_FROM = os.getenv("BACKFILL_FROM", "").strip()
 
 # --- 메일 설정 ---
 SMTP_SERVER = "smtp.gmail.com"

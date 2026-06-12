@@ -18,6 +18,7 @@ DEFAULT_HEADERS = {
 
 PROXY = None
 REQUEST_TIMEOUT = 60  # 응답 대기시간(초)
+MAX_BACKFILL_PAGES = 50  # 백필 시 게시판당 최대 페이지 수 (안전 상한)
 
 # 이번 실행에서 목록 수집이 최종 실패(연결 오류)한 게시판 이름 목록
 FAILED_BOARDS = []
@@ -52,71 +53,117 @@ def _extract_row_attachments(row):
     return files
 
 
-def get_post_list(board_name, params):
-    target_url = params['url']
+def _fetch_soup(url, board_name):
+    """목록 페이지를 재시도 포함하여 가져온다. 최종 실패 시 None."""
     max_retries = 3
-
     for attempt in range(1, max_retries + 1):
         try:
             time.sleep(random.uniform(4.0, 8.0))
             response = requests.get(
-                target_url,
+                url,
                 impersonate="chrome116",
                 headers=DEFAULT_HEADERS,
                 proxies=PROXY,
                 timeout=REQUEST_TIMEOUT,
                 verify=False
             )
-
-            soup = BeautifulSoup(response.content, 'html.parser')
-            rows = soup.select('table tbody tr')
-
-            if not rows:
-                print(f"[{board_name}] 게시글 없음 또는 목록 추출 실패")
-                return []
-
-            posts = []
-            for row in rows:
-                cols = row.select('td')
-
-                # 심결정보 게시판 특수 처리 (번호, 안건번호, 제목, 첨부파일, 공공누리, 작성일 순)
-                if board_name == "심결정보" and len(cols) >= 6:
-                    title = cols[2].get_text(strip=True)  # 제목 열
-                    date_val = cols[5].get_text(strip=True)  # 작성일 열
-                    link = target_url  # 상세 페이지가 없으므로 목록 주소 유지
-
-                    posts.append({
-                        'board_name': board_name, 'title': title, 'url': link,
-                        'content': f"안건번호: {cols[1].get_text(strip=True)}",
-                        'attachments': _extract_row_attachments(row),
-                        'date': date_val, 'is_direct': True
-                    })
-                else:
-                    # 일반 게시판 처리: 목록에서 날짜와 첨부파일까지 수집
-                    a_tag = row.select_one('a[href*="boardSeq"]') or row.select_one('a')
-                    if not a_tag:
-                        continue
-
-                    title = a_tag.get_text(strip=True)
-                    href = a_tag.get('href', '')
-                    link = urllib.parse.urljoin(RSS_BASE_URL, href)
-
-                    posts.append({
-                        'board_name': board_name, 'title': title, 'url': link,
-                        'content': "",
-                        'attachments': _extract_row_attachments(row),
-                        'date': _extract_row_date(cols),
-                        'is_direct': False
-                    })
-
-            print(f"[{board_name}] {len(posts)}개 항목 수집 완료")
-            return posts
+            return BeautifulSoup(response.content, 'html.parser')
         except Exception as e:
             print(f"[{board_name}] 목록 수집 에러 (시도 {attempt}/{max_retries}): {e}")
             if attempt == max_retries:
-                FAILED_BOARDS.append(board_name)
-                return []
+                return None
             time.sleep(5.0)
+
+
+def _parse_rows(board_name, rows, page_url):
+    """목록 페이지의 행들을 게시글 딕셔너리 목록으로 변환한다."""
+    posts = []
+    for row in rows:
+        cols = row.select('td')
+
+        # 심결정보 게시판 특수 처리 (번호, 안건번호, 제목, 첨부파일, 공공누리, 작성일 순)
+        if board_name == "심결정보" and len(cols) >= 6:
+            title = cols[2].get_text(strip=True)  # 제목 열
+            date_val = cols[5].get_text(strip=True)  # 작성일 열
+
+            posts.append({
+                'board_name': board_name, 'title': title, 'url': page_url,
+                'content': f"안건번호: {cols[1].get_text(strip=True)}",
+                'attachments': _extract_row_attachments(row),
+                'date': date_val, 'is_direct': True
+            })
+        else:
+            # 일반 게시판 처리: 목록에서 날짜와 첨부파일까지 수집
+            a_tag = row.select_one('a[href*="boardSeq"]') or row.select_one('a')
+            if not a_tag:
+                continue
+
+            title = a_tag.get_text(strip=True)
+            href = a_tag.get('href', '')
+            link = urllib.parse.urljoin(RSS_BASE_URL, href)
+
+            posts.append({
+                'board_name': board_name, 'title': title, 'url': link,
+                'content': "",
+                'attachments': _extract_row_attachments(row),
+                'date': _extract_row_date(cols),
+                'is_direct': False
+            })
+    return posts
+
+
+def get_post_list(board_name, params, from_date=None):
+    """게시판 목록을 수집한다.
+
+    from_date(YYYY-MM-DD)가 주어지면 해당 날짜 이전 글이 나올 때까지
+    다음 페이지(cp=2, 3, ...)를 계속 넘기며 수집한다 (백필 모드).
+    from_date가 없으면 기존처럼 1페이지만 수집한다.
+    """
+    base_url = params['url']
+    sep = '&' if '?' in base_url else '?'
+    max_pages = MAX_BACKFILL_PAGES if from_date else 1
+
+    all_posts = []
+    seen_keys = set()
+
+    for cp in range(1, max_pages + 1):
+        page_url = f"{base_url}{sep}cp={cp}"
+        soup = _fetch_soup(page_url, board_name)
+        if soup is None:
+            FAILED_BOARDS.append(board_name)
+            break
+
+        rows = soup.select('table tbody tr')
+        if not rows:
+            if cp == 1:
+                print(f"[{board_name}] 게시글 없음 또는 목록 추출 실패")
+            break
+
+        page_posts = _parse_rows(board_name, rows, page_url)
+
+        # 페이지 간 중복 제거 (제목+날짜+링크 기준)
+        new_posts = []
+        for p in page_posts:
+            key = f"{p['title']}|{p.get('date')}|{p['url']}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            new_posts.append(p)
+
+        if not new_posts:
+            break  # 마지막 페이지를 넘어 같은 내용이 반복되는 경우 종료
+
+        all_posts.extend(new_posts)
+
+        if from_date:
+            print(f"[{board_name}] {cp}페이지: {len(new_posts)}건 수집")
+            dates = [p['date'] for p in new_posts if p.get('date')]
+            # 이 페이지에 기준 날짜보다 오래된 글이 있으면 더 넘길 필요 없음
+            if dates and min(dates) < from_date:
+                break
+
+    print(f"[{board_name}] {len(all_posts)}개 항목 수집 완료")
+    return all_posts
 
 
 def get_post_detail(item):

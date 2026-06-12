@@ -1,7 +1,7 @@
 import os
 import re
 from datetime import datetime, timedelta
-from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS
+from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS, BACKFILL_FROM
 from src.crawler import get_post_list, get_post_detail, FAILED_BOARDS
 from src.storage import load_seen, save_seen, get_hash
 from src.filter import check_keywords
@@ -19,6 +19,15 @@ def main():
     today_str = kst_now.strftime('%Y-%m-%d')
     yesterday_str = (kst_now - timedelta(days=1)).strftime('%Y-%m-%d')
 
+    # --- 기준 날짜: 백필 모드면 지정 날짜, 아니면 어제 ---
+    if BACKFILL_FROM and re.fullmatch(r'\d{4}-\d{2}-\d{2}', BACKFILL_FROM):
+        base_date = BACKFILL_FROM
+        from_date = BACKFILL_FROM
+        print(f"백필 모드: {base_date} 이후 글을 페이지 넘김으로 수집")
+    else:
+        base_date = yesterday_str
+        from_date = None
+
     # --- 테스트 모드: 지정된 게시판만 실행 ---
     boards = BOARDS
     if TEST_BOARDS:
@@ -26,20 +35,20 @@ def main():
         boards = {k: v for k, v in BOARDS.items() if k in names}
         print(f"테스트 모드: {list(boards.keys())}만 실행")
 
-    print(f"KMCC 모니터링 시작 (기준 날짜: {yesterday_str} 이후)")
+    print(f"KMCC 모니터링 시작 (기준 날짜: {base_date} 이후)")
 
     for name, params in boards.items():
-        posts = get_post_list(name, params)
+        posts = get_post_list(name, params, from_date=from_date)
         for p in posts:
             # --- 1차 필터: 목록의 등록일이 기준보다 오래되면 상세 접속 없이 건너뜀 ---
             list_date = p.get('date')
-            if list_date and list_date < yesterday_str:
+            if list_date and list_date < base_date:
                 continue
 
             detail_item = get_post_detail(p)
             post_date = detail_item.get('date', '1970-01-01')
 
-            if post_date < yesterday_str:
+            if post_date < base_date:
                 continue
 
             # --- 수집 대상 판정 ---
@@ -87,7 +96,7 @@ def main():
         except Exception as e:
             print(f"메일 발송 실패 (노션 적재는 계속 진행): {e}")
     else:
-        print(f"{yesterday_str} 이후 등록된 신규 항목이 없습니다.")
+        print(f"{base_date} 이후 등록된 신규 항목이 없습니다.")
 
     # --- 출력 2: 노션 적재 (필터 통과 항목만) ---
     if matched_items:
