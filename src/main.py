@@ -59,10 +59,18 @@ def main():
             if not (name == "의사일정" or is_mandatory_press or check_keywords(detail_item)):
                 continue
 
-            # --- 의사일정 문서 종류 태그 ---
+            # --- 의사일정 문서 종류 태그 + 키워드 기록 ---
             doc_type = ""
             if name == "의사일정":
                 att_names = " ".join(a['name'] for a in detail_item.get('attachments', []))
+
+                # 키워드: 감지된 문서 종류를 모두 기록 (노션 키워드 컬럼용)
+                doc_kinds = [k for k in ("의사일정", "회의록", "속기록") if k in att_names]
+                if not doc_kinds:
+                    doc_kinds = ["의사일정"]
+                detail_item['matched_keywords'] = doc_kinds
+
+                # 제목 태그: 우선순위(속기록 > 회의록 > 의사일정) 1개만
                 if "속기록" in att_names:
                     doc_type = "[속기록] "
                 elif "회의록" in att_names:
