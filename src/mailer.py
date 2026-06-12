@@ -2,7 +2,10 @@ import smtplib
 import html
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from src.config import SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_APP_PASSWORD, MAIL_TO
+from src.config import (
+    SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_APP_PASSWORD, MAIL_TO,
+    NOTION_PAGE_URL,
+)
 
 
 def _build_item_html(item):
@@ -40,13 +43,27 @@ def _build_item_html(item):
 
 
 def send_mail(items, today_str, failed_boards=None):
-    """수집 결과를 HTML 메일로 발송한다. 최종 수집 실패 게시판은 본문 맨 아래에 표시."""
+    """수집 결과를 HTML 메일로 발송한다.
+
+    - 상단: 노션 아카이브 안내 (NOTION_PAGE_URL 설정 시)
+    - 하단: 최종 수집 실패 게시판 표시
+    """
     if items:
         subject = f"[KMCC] {today_str} 신규 {len(items)}건"
         body_items = "".join(_build_item_html(i) for i in items)
     else:
         subject = f"[KMCC] {today_str} 신규 항목 없음"
         body_items = "<p>기준 기간 내 신규 등록된 항목이 없습니다.</p>"
+
+    notion_html = ""
+    if NOTION_PAGE_URL and NOTION_PAGE_URL.startswith("http"):
+        notion_html = f"""
+        <div style="background:#f0f4ff;border:1px solid #d6e0ff;border-radius:8px;
+                    padding:10px 14px;margin-bottom:16px;font-size:13px">
+          상세정보 및 과거 수집 내역은 노션 아카이브에서 확인할 수 있습니다.<br>
+          <a href="{NOTION_PAGE_URL}" style="font-weight:bold">&#128214; KMCC 모니터링 아카이브 바로가기</a>
+        </div>
+        """
 
     fail_html = ""
     if failed_boards:
@@ -61,6 +78,7 @@ def send_mail(items, today_str, failed_boards=None):
     body = f"""
     <html><body style="font-family:'Malgun Gothic',sans-serif;max-width:680px">
       <h2 style="font-size:17px">KMCC 모니터링 결과 ({today_str})</h2>
+      {notion_html}
       {body_items}
       {fail_html}
     </body></html>

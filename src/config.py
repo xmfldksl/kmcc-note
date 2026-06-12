@@ -28,6 +28,8 @@ INCLUDE_KEYWORDS = [
     "LG헬로비전", "딜라이브", "SK브로드밴드", "HCN", "CMB",
 ]
 EXCLUDE_KEYWORDS = []
+# 제목에 아래 문장이 '전부' 포함된 글만 수집 제외 (다른 공시송달 글은 수집 유지)
+EXCLUDE_TITLE_KEYWORDS = ["과태료 고지서 및 독촉장 반송에 따른 공시송달"]
 
 SEND_EMPTY_MAIL = True
 
@@ -45,18 +47,20 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_APP_PASSWORD = os.getenv("SMTP_APP_PASSWORD")
 MAIL_TO = os.getenv("MAIL_TO")
 
+# --- 노션 아카이브 안내 (메일 상단에 표시할 공유 링크, 비우면 안내 미표시) ---
+NOTION_PAGE_URL = "https://app.notion.com/p/37ba1f8c0e2e806a867cc5fe64ac23dd"
+
 # --- Gemini 요약 설정 ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_API_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    f"{GEMINI_MODEL}:generateContent"
-)
+# 모델 체인: 앞 모델의 일일 한도가 소진되면 다음 모델로 자동 전환
+GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"]
 # 첨부파일 추출 텍스트를 이 글자 수까지만 Gemini에 전달 (무료 등급 한도 보호)
 MAX_EXTRACT_CHARS = 30000
 # Gemini 호출 사이 대기 시간(초): 무료 등급 분당 요청 제한 회피
-GEMINI_CALL_INTERVAL = 7
+GEMINI_CALL_INTERVAL = 12
 # 첨부파일 처리 우선순위 (앞에 있을수록 우선)
 ATTACHMENT_PRIORITY = [".pdf", ".hwpx", ".hwp"]
+# 요약에서 제외할 문서명 패턴 (파일 첨부는 유지)
+SKIP_SUMMARY_PATTERNS = ["양식", "서식"]
 
 # END OF FILE

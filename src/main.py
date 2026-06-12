@@ -5,7 +5,7 @@ from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS, BACKFILL_FROM
 from src.crawler import get_post_list, get_post_detail, FAILED_BOARDS
 from src.storage import load_seen, save_seen, get_hash
 from src.filter import check_keywords
-from src.summarizer import summarize
+from src import summarizer
 from src.mailer import send_mail
 from src.notion_archiver import archive_to_notion
 
@@ -14,6 +14,7 @@ def main():
     seen_hashes = load_seen()
     new_seen_hashes = list(seen_hashes)
     matched_items = []
+    quota_stop = False
 
     kst_now = datetime.now() + timedelta(hours=9)
     today_str = kst_now.strftime('%Y-%m-%d')
@@ -38,6 +39,8 @@ def main():
     print(f"KMCC 모니터링 시작 (기준 날짜: {base_date} 이후)")
 
     for name, params in boards.items():
+        if quota_stop:
+            break
         posts = get_post_list(name, params, from_date=from_date)
         for p in posts:
             # --- 1차 필터: 목록의 등록일이 기준보다 오래되면 상세 접속 없이 건너뜀 ---
@@ -64,13 +67,11 @@ def main():
             if name == "의사일정":
                 att_names = " ".join(a['name'] for a in detail_item.get('attachments', []))
 
-                # 키워드: 감지된 문서 종류를 모두 기록 (노션 키워드 컬럼용)
                 doc_kinds = [k for k in ("의사일정", "회의록", "속기록") if k in att_names]
                 if not doc_kinds:
                     doc_kinds = ["의사일정"]
                 detail_item['matched_keywords'] = doc_kinds
 
-                # 제목 태그: 우선순위(속기록 > 회의록 > 의사일정) 1개만
                 if "속기록" in att_names:
                     doc_type = "[속기록] "
                 elif "회의록" in att_names:
@@ -88,8 +89,16 @@ def main():
                 continue
 
             # --- 첨부파일 추출 + Gemini 요약 ---
-            detail_item['summary'] = summarize(detail_item)
+            summary = summarizer.summarize(detail_item)
 
+            # --- 일일 한도 소진: 이 항목은 기록하지 않고 전체 중단 (다음 실행에서 이어짐) ---
+            if summarizer.QUOTA_EXHAUSTED:
+                print(f"Gemini 일일 한도 소진 — 실행을 중단합니다. "
+                      f"'{modified_title[:20]}'부터는 다음 실행에서 이어서 처리됩니다.")
+                quota_stop = True
+                break
+
+            detail_item['summary'] = summary
             matched_items.append(detail_item)
             new_seen_hashes.append(p_hash)
             print(f"  -> 신규 항목 수집: {modified_title[:15]}")
@@ -112,6 +121,10 @@ def main():
         archive_to_notion(matched_items)
 
     save_seen(new_seen_hashes)
+
+    if quota_stop:
+        print("안내: Gemini 일일 한도가 초기화된 뒤(미국 태평양시 자정 기준) 같은 설정으로 재실행하면 "
+              "중단 지점부터 이어서 수집됩니다.")
 
 
 if __name__ == "__main__":
