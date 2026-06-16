@@ -1,5 +1,140 @@
 # KMCC Note
 
+A monitoring system that automatically collects posts from the major boards of the Korea Media & Communications Commission (KMCC) website, summarizes keyword-matching posts with AI, and delivers them via **email** and a **Notion database**.
+
+It is designed to track daily policy trends and committee schedules on specific topics such as home shopping, re-approval, transmission fees, and cable broadcasting (SO).
+
+---
+
+## Features
+
+- **Automated collection**: Crawls 12 boards every weekday at noon (KST) via GitHub Actions.
+- **Keyword filtering**: Always collects committee schedules and committee-result press releases; other posts are filtered by predefined keywords (title + body).
+- **Attachment summarization**: Downloads post attachments (PDF / HWPX / HWP), extracts the text, and summarizes it with the Gemini API. When a filename is garbled, the file format is detected by its content signature (magic bytes).
+- **Meeting summary format**: Meeting documents such as agendas, minutes, and transcripts are summarized in a fixed format for internal sharing (committee session number, per-item resolution/report classification, etc.).
+- **Email delivery**: Sends results as an HTML email, with a Notion archive link at the top and any failed boards listed at the bottom.
+- **Notion archive**: Stores filtered posts in a Notion database, including the full summary, attachments (uploaded directly for supported formats, original link for unsupported ones), and an original-post link, while preventing duplicates by title + date.
+
+---
+
+## Architecture
+
+\`\`\`
+src/
+├── config.py          Settings (board list, keywords, model, env vars)
+├── crawler.py         Board list / detail page crawling
+├── attachment.py      Attachment download & text extraction (PDF/HWPX/HWP)
+├── summarizer.py      Gemini API summarization (model chain, meeting format)
+├── filter.py          Keyword filtering
+├── storage.py         Duplicate-prevention record (seen_posts.txt)
+├── mailer.py          SMTP email delivery
+├── notion_archiver.py Notion database archiving
+└── main.py            Main execution flow
+
+.github/workflows/
+└── scraper.yml        GitHub Actions schedule
+\`\`\`
+
+### Flow
+
+1. Read post dates from the board list and select only posts after the reference date (minimizing requests)
+2. Collect body and attachments from the detail pages of target posts
+3. Pass only mandatory-collection posts or keyword-matching posts
+4. Extract attachments and summarize with Gemini (one combined call per post)
+5. Email and archive non-duplicate posts to Notion
+
+---
+
+## Installation & Usage
+
+### Requirements
+
+- Python 3.12 or higher
+
+### Install dependencies
+
+\`\`\`bash
+pip install -r requirements.txt
+\`\`\`
+
+### Environment variables
+
+Set the following as environment variables (or GitHub secrets).
+
+| Variable | Purpose |
+|---|---|
+| \`SMTP_USER\` | Sender Gmail address |
+| \`SMTP_APP_PASSWORD\` | Gmail app password |
+| \`MAIL_TO\` | Recipient email (comma-separated for multiple) |
+| \`GEMINI_API_KEY\` | Google AI Studio API key |
+| \`NOTION_TOKEN\` | Notion integration token |
+| \`NOTION_DATABASE_ID\` | Notion database ID |
+
+### Run
+
+\`\`\`bash
+python -m src.main
+\`\`\`
+
+---
+
+## Execution Modes
+
+Behavior is controlled by environment variables.
+
+| Variable | Description |
+|---|---|
+| \`TEST_BOARDS\` | Comma-separated board names. Runs only those boards when set (all boards if empty) |
+| \`BACKFILL_FROM\` | \`YYYY-MM-DD\`. When set, collects all past posts after that date by paging through the board |
+| \`SKIP_MAIL\` | \`1\` skips email delivery (Notion archiving only) |
+
+**Backfill** (retroactive collection): when the daily API quota is exhausted, it records up to the processed point and stops. Re-running with the same settings after the quota resets resumes from where it stopped.
+
+---
+
+## Notion Database Setup
+
+The Notion database must have the following properties for archiving.
+
+| Property | Type |
+|---|---|
+| 제목 (Title) | Title |
+| 게시판 (Board) | Select |
+| 날짜 (Date) | Date |
+| 키워드 (Keyword) | Multi-select |
+| 원문보기 (Original) | URL |
+| 요약보기 (Summary) | URL |
+
+The integration must be connected to the database page for API access.
+
+---
+
+## Operational Notes
+
+- Scheduled runs are performed by GitHub Actions (weekdays at noon).
+- Because Korean public-sector sites tend to block overseas IP ranges, large-scale collection (backfill) is recommended to run from a domestic IP environment.
+- To cope with the Gemini free-tier daily limit, a lightweight model is used first and automatically switches to a higher-tier model when the quota is exhausted.
+
+---
+
+## Tech Stack
+
+- **Language**: Python 3.12
+- **Crawling**: curl_cffi (browser impersonation), BeautifulSoup
+- **Document processing**: pdfplumber (PDF), olefile (HWP), standard zipfile (HWPX)
+- **AI summarization**: Google Gemini API
+- **Output**: SMTP (email), Notion API (archive)
+- **Automation**: GitHub Actions
+
+<br>
+
+---
+---
+
+<br>
+
+# KMCC Note (한국어)
+
 방송미디어통신위원회(KMCC) 홈페이지의 주요 게시판을 자동으로 수집해, 키워드에 해당하는 글을 AI로 요약하고 **이메일 발송**과 **노션 데이터베이스 적재**까지 처리하는 모니터링 시스템입니다.
 
 홈쇼핑·재승인·송출수수료·종합유선방송 등 특정 주제의 정책 동향과 위원회 의사일정을 매일 자동으로 추적하는 것을 목적으로 합니다.
@@ -19,7 +154,7 @@
 
 ## 시스템 구조
 
-```
+\`\`\`
 src/
 ├── config.py          설정 (게시판 목록, 키워드, 모델, 환경변수)
 ├── crawler.py         게시판 목록·상세 페이지 크롤링
@@ -33,7 +168,7 @@ src/
 
 .github/workflows/
 └── scraper.yml        깃허브 액션 스케줄 설정
-```
+\`\`\`
 
 ### 처리 흐름
 
@@ -53,9 +188,9 @@ src/
 
 ### 의존성 설치
 
-```bash
+\`\`\`bash
 pip install -r requirements.txt
-```
+\`\`\`
 
 ### 환경변수
 
@@ -63,18 +198,18 @@ pip install -r requirements.txt
 
 | 변수명 | 용도 |
 |---|---|
-| `SMTP_USER` | 발신 Gmail 주소 |
-| `SMTP_APP_PASSWORD` | Gmail 앱 비밀번호 |
-| `MAIL_TO` | 수신 이메일 주소 (쉼표로 복수 지정 가능) |
-| `GEMINI_API_KEY` | Google AI Studio API 키 |
-| `NOTION_TOKEN` | 노션 통합(Integration) 토큰 |
-| `NOTION_DATABASE_ID` | 노션 데이터베이스 ID |
+| \`SMTP_USER\` | 발신 Gmail 주소 |
+| \`SMTP_APP_PASSWORD\` | Gmail 앱 비밀번호 |
+| \`MAIL_TO\` | 수신 이메일 주소 (쉼표로 복수 지정 가능) |
+| \`GEMINI_API_KEY\` | Google AI Studio API 키 |
+| \`NOTION_TOKEN\` | 노션 통합(Integration) 토큰 |
+| \`NOTION_DATABASE_ID\` | 노션 데이터베이스 ID |
 
 ### 실행
 
-```bash
+\`\`\`bash
 python -m src.main
-```
+\`\`\`
 
 ---
 
@@ -84,9 +219,9 @@ python -m src.main
 
 | 변수명 | 설명 |
 |---|---|
-| `TEST_BOARDS` | 쉼표로 구분된 게시판 이름. 지정 시 해당 게시판만 실행 (비우면 전체) |
-| `BACKFILL_FROM` | `YYYY-MM-DD` 형식. 지정 시 해당 날짜 이후의 과거 글을 페이지를 넘기며 전부 수집 |
-| `SKIP_MAIL` | `1`이면 이메일 발송을 생략 (노션 적재만 수행) |
+| \`TEST_BOARDS\` | 쉼표로 구분된 게시판 이름. 지정 시 해당 게시판만 실행 (비우면 전체) |
+| \`BACKFILL_FROM\` | \`YYYY-MM-DD\` 형식. 지정 시 해당 날짜 이후의 과거 글을 페이지를 넘기며 전부 수집 |
+| \`SKIP_MAIL\` | \`1\`이면 이메일 발송을 생략 (노션 적재만 수행) |
 
 **백필(과거 데이터 소급 수집)** 은 일일 API 한도가 소진되면 처리한 지점까지만 기록하고 중단하며, 한도 초기화 후 같은 설정으로 재실행하면 중단 지점부터 이어서 수집합니다.
 
@@ -111,7 +246,7 @@ python -m src.main
 
 ## 운영 참고
 
-- 정기 실행은 깃허브 액션에서 수행합니다.
+- 정기 실행은 깃허브 액션(평일 정오)에서 수행합니다.
 - 한국 공공기관 사이트의 해외 IP 차단 특성상, 대량 수집(백필)은 국내 IP 환경에서 실행하는 것을 권장합니다.
 - Gemini 무료 등급의 일일 한도에 대응해 경량 모델을 우선 사용하고, 한도 소진 시 상위 모델로 자동 전환합니다.
 
