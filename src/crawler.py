@@ -25,8 +25,21 @@ _BACKFILL = bool(BACKFILL_FROM and re.fullmatch(r'\d{4}-\d{2}-\d{2}', BACKFILL_F
 LIST_DELAY = (10.0, 16.0) if _BACKFILL else (4.0, 8.0)
 DETAIL_DELAY = (10.0, 18.0) if _BACKFILL else (5.0, 10.0)
 
+# 본문에서 이 표지 이후(이전글/다음글 네비게이션 등)는 잘라낸다
+TRAILING_MARKERS = ["이전글", "다음글", "목록공공누리", "만족도평가"]
+
 # 이번 실행에서 목록 수집이 최종 실패(연결 오류)한 게시판 이름 목록
 FAILED_BOARDS = []
+
+
+def _trim_navigation(text):
+    """본문에서 '이전글/다음글' 등 네비게이션 영역 이후를 잘라낸다."""
+    cut = len(text)
+    for marker in TRAILING_MARKERS:
+        idx = text.find(marker)
+        if idx != -1:
+            cut = min(cut, idx)
+    return text[:cut].strip()
 
 
 def _extract_row_date(cols):
@@ -198,7 +211,8 @@ def get_post_detail(item):
                 backup_match = re.search(r'(\d{4}-\d{2}-\d{2})', raw_text)
                 item['date'] = backup_match.group(1) if backup_match else "1970-01-01"
 
-            item['content'] = content_after_title.strip()
+            # 본문에서 '이전글/다음글' 네비게이션 이후를 제거 (오탐·잡음 방지)
+            item['content'] = _trim_navigation(content_after_title.strip())
 
             files = []
             seen_urls = set()

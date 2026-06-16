@@ -30,8 +30,7 @@ INCLUDE_KEYWORDS = [
 EXCLUDE_KEYWORDS = []
 # 제목에 아래 문장이 '전부' 포함된 글만 수집 제외 (다른 공시송달 글은 수집 유지)
 EXCLUDE_TITLE_KEYWORDS = [
-    "과태료 고지서 및 독촉장 반송에 따른 공시송달",
-    "정보통신망법 위반에 따른 과태료 사전통지 및 의견제출 알림 공시송달",
+    "과태료 고지서 및 독촉장 반송에 따른 공시송달"
 ]
 
 SEND_EMPTY_MAIL = True
