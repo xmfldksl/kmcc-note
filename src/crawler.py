@@ -3,7 +3,7 @@ import time
 import random
 import urllib.parse
 from curl_cffi import requests
-from src.config import RSS_BASE_URL
+from src.config import RSS_BASE_URL, BACKFILL_FROM
 import urllib3
 import re
 
@@ -19,6 +19,11 @@ DEFAULT_HEADERS = {
 PROXY = None
 REQUEST_TIMEOUT = 60  # 응답 대기시간(초)
 MAX_BACKFILL_PAGES = 50  # 백필 시 게시판당 최대 페이지 수 (안전 상한)
+
+# 백필 모드에서는 차단 위험을 낮추기 위해 요청 간격을 늘린다
+_BACKFILL = bool(BACKFILL_FROM and re.fullmatch(r'\d{4}-\d{2}-\d{2}', BACKFILL_FROM))
+LIST_DELAY = (10.0, 16.0) if _BACKFILL else (4.0, 8.0)
+DETAIL_DELAY = (10.0, 18.0) if _BACKFILL else (5.0, 10.0)
 
 # 이번 실행에서 목록 수집이 최종 실패(연결 오류)한 게시판 이름 목록
 FAILED_BOARDS = []
@@ -58,7 +63,7 @@ def _fetch_soup(url, board_name):
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
-            time.sleep(random.uniform(4.0, 8.0))
+            time.sleep(random.uniform(*LIST_DELAY))
             response = requests.get(
                 url,
                 impersonate="chrome116",
@@ -81,10 +86,9 @@ def _parse_rows(board_name, rows, page_url):
     for row in rows:
         cols = row.select('td')
 
-        # 심결정보 게시판 특수 처리 (번호, 안건번호, 제목, 첨부파일, 공공누리, 작성일 순)
         if board_name == "심결정보" and len(cols) >= 6:
-            title = cols[2].get_text(strip=True)  # 제목 열
-            date_val = cols[5].get_text(strip=True)  # 작성일 열
+            title = cols[2].get_text(strip=True)
+            date_val = cols[5].get_text(strip=True)
 
             posts.append({
                 'board_name': board_name, 'title': title, 'url': page_url,
@@ -93,7 +97,6 @@ def _parse_rows(board_name, rows, page_url):
                 'date': date_val, 'is_direct': True
             })
         else:
-            # 일반 게시판 처리: 목록에서 날짜와 첨부파일까지 수집
             a_tag = row.select_one('a[href*="boardSeq"]') or row.select_one('a')
             if not a_tag:
                 continue
@@ -141,7 +144,6 @@ def get_post_list(board_name, params, from_date=None):
 
         page_posts = _parse_rows(board_name, rows, page_url)
 
-        # 페이지 간 중복 제거 (제목+날짜+링크 기준)
         new_posts = []
         for p in page_posts:
             key = f"{p['title']}|{p.get('date')}|{p['url']}"
@@ -151,14 +153,13 @@ def get_post_list(board_name, params, from_date=None):
             new_posts.append(p)
 
         if not new_posts:
-            break  # 마지막 페이지를 넘어 같은 내용이 반복되는 경우 종료
+            break
 
         all_posts.extend(new_posts)
 
         if from_date:
             print(f"[{board_name}] {cp}페이지: {len(new_posts)}건 수집")
             dates = [p['date'] for p in new_posts if p.get('date')]
-            # 이 페이지에 기준 날짜보다 오래된 글이 있으면 더 넘길 필요 없음
             if dates and min(dates) < from_date:
                 break
 
@@ -167,7 +168,6 @@ def get_post_list(board_name, params, from_date=None):
 
 
 def get_post_detail(item):
-    # 목록에서 날짜와 제목을 이미 확정한 경우(심결정보 등) 상세 페이지 접속 생략
     if item.get('is_direct'):
         print(f"  -> [{item['board_name']}] 목록 데이터 사용 (날짜: {item['date']}): {item['title'][:15]}")
         return item
@@ -175,7 +175,7 @@ def get_post_detail(item):
     max_retries = 3
     for attempt in range(1, max_retries + 1):
         try:
-            time.sleep(random.uniform(5.0, 10.0))
+            time.sleep(random.uniform(*DETAIL_DELAY))
             response = requests.get(
                 item['url'],
                 impersonate="chrome116",
@@ -200,7 +200,6 @@ def get_post_detail(item):
 
             item['content'] = content_after_title.strip()
 
-            # 첨부파일: 상세 페이지에서 더 정확한 파일명(span.font_56)으로 수집되면 교체
             files = []
             seen_urls = set()
             for a in soup.select('a[href*="download.do"]'):

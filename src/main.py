@@ -10,9 +10,18 @@ from src.mailer import send_mail
 from src.notion_archiver import archive_to_notion
 
 
+def _meeting_doc_type(att_names):
+    if "속기록" in att_names:
+        return "[속기록] "
+    if "회의록" in att_names:
+        return "[회의록] "
+    return "[의사일정] "
+
+
 def main():
     seen_hashes = load_seen()
     new_seen_hashes = list(seen_hashes)
+    seen_set = set(seen_hashes)
     matched_items = []
     quota_stop = False
 
@@ -43,10 +52,23 @@ def main():
             break
         posts = get_post_list(name, params, from_date=from_date)
         for p in posts:
-            # --- 1차 필터: 목록의 등록일이 기준보다 오래되면 상세 접속 없이 건너뜀 ---
+            # --- 1차 필터: 목록의 등록일이 기준보다 오래되면 건너뜀 ---
             list_date = p.get('date')
             if list_date and list_date < base_date:
                 continue
+
+            # --- 사전 중복 검사: 목록 정보만으로 해시를 만들어 이미 처리된 글이면
+            #     상세 페이지 접속 자체를 생략 (재실행 시 접속량 최소화) ---
+            list_title = p.get('title', '')
+            if list_date and name != "심결정보":
+                if name == "의사일정":
+                    att_names = " ".join(a['name'] for a in p.get('attachments', []))
+                    pre_title = f"{_meeting_doc_type(att_names)}{list_title}"
+                else:
+                    pre_title = list_title
+                pre_hash = get_hash(name, pre_title, list_date, "v2")
+                if pre_hash in seen_set:
+                    continue
 
             detail_item = get_post_detail(p)
             post_date = detail_item.get('date', '1970-01-01')
@@ -66,25 +88,18 @@ def main():
             doc_type = ""
             if name == "의사일정":
                 att_names = " ".join(a['name'] for a in detail_item.get('attachments', []))
-
                 doc_kinds = [k for k in ("의사일정", "회의록", "속기록") if k in att_names]
                 if not doc_kinds:
                     doc_kinds = ["의사일정"]
                 detail_item['matched_keywords'] = doc_kinds
-
-                if "속기록" in att_names:
-                    doc_type = "[속기록] "
-                elif "회의록" in att_names:
-                    doc_type = "[회의록] "
-                else:
-                    doc_type = "[의사일정] "
+                doc_type = _meeting_doc_type(att_names)
 
             modified_title = f"{doc_type}{detail_item['title']}"
             detail_item['title'] = modified_title
 
-            # --- 중복 검사 (요약 전에 수행: 중복이면 Gemini 호출 생략) ---
+            # --- 중복 검사 (상세 단계 최종 확인) ---
             p_hash = get_hash(name, modified_title, post_date, "v2")
-            if p_hash in new_seen_hashes:
+            if p_hash in seen_set:
                 print(f"  -> 중복 항목 건너뜀: {modified_title[:15]}")
                 continue
 
@@ -101,6 +116,7 @@ def main():
             detail_item['summary'] = summary
             matched_items.append(detail_item)
             new_seen_hashes.append(p_hash)
+            seen_set.add(p_hash)
             print(f"  -> 신규 항목 수집: {modified_title[:15]}")
 
     # --- 출력 1: 메일 발송 (SKIP_MAIL=1이면 생략, 실패해도 노션 적재는 계속) ---
@@ -123,7 +139,7 @@ def main():
     save_seen(new_seen_hashes)
 
     if quota_stop:
-        print("안내: Gemini 일일 한도가 초기화된 뒤(미국 태평양시 자정 기준) 같은 설정으로 재실행하면 "
+        print("안내: Gemini 일일 한도가 초기화된 뒤 같은 설정으로 재실행하면 "
               "중단 지점부터 이어서 수집됩니다.")
 
 
