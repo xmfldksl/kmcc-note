@@ -199,7 +199,7 @@ def archive_to_notion(items):
                 "게시판": {"select": {"name": item.get('board_name', '기타')}},
                 "제목": {"title": [{"text": {"content": item.get('title', '')[:200]}}]},
                 "날짜": {"date": {"start": item.get('date', '1970-01-01')}},
-                "링크": {"url": item.get('url') or None},
+                "원문보기": {"url": item.get('url') or None},
             }
             keywords = item.get('matched_keywords', [])
             if keywords:
