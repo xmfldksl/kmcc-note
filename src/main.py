@@ -94,6 +94,10 @@ def main():
                 detail_item['matched_keywords'] = doc_kinds
                 doc_type = _meeting_doc_type(att_names)
 
+            # --- 보도자료의 'N차 위원회 결과' 필수 수집 글에 고정 키워드 부여 ---
+            if is_mandatory_press and not detail_item.get('matched_keywords'):
+                detail_item['matched_keywords'] = ["위원회결과"]
+
             modified_title = f"{doc_type}{detail_item['title']}"
             detail_item['title'] = modified_title
 
