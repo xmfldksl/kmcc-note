@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS, BACKFILL_FROM
 from src.crawler import get_post_list, get_post_detail, FAILED_BOARDS
 from src.storage import load_seen, save_seen, get_hash
-from src.filter import check_keywords
+from src.filter import check_keywords, find_keywords_in_text
 from src import summarizer
 from src.mailer import send_mail
 from src.notion_archiver import archive_to_notion
@@ -118,6 +118,17 @@ def main():
                 break
 
             detail_item['summary'] = summary
+
+            # --- 요약문에서 발견된 필터 키워드를 기존 키워드에 합침 (중복 제거, 순서 유지) ---
+            summary_keywords = find_keywords_in_text(summary)
+            if summary_keywords:
+                existing = detail_item.get('matched_keywords', [])
+                merged = list(existing)
+                for kw in summary_keywords:
+                    if kw not in merged:
+                        merged.append(kw)
+                detail_item['matched_keywords'] = merged
+
             matched_items.append(detail_item)
             new_seen_hashes.append(p_hash)
             seen_set.add(p_hash)

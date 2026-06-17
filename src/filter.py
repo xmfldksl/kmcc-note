@@ -35,3 +35,15 @@ def check_keywords(item):
         item['matched_keywords'] = matched
         return True
     return False
+
+
+def find_keywords_in_text(text):
+    """주어진 텍스트(요약문 등)에서 수집 키워드를 찾아 목록으로 반환한다."""
+    if not text:
+        return []
+    lowered = text.lower()
+    found = []
+    for kw in HIGH_PRIORITY_KEYWORDS + INCLUDE_KEYWORDS:
+        if kw.lower() in lowered:
+            found.append(kw)
+    return found
