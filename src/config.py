@@ -25,12 +25,14 @@ INCLUDE_KEYWORDS = [
     "송출수수료", "송출 수수료", "대가산정",
     # SO(종합유선방송) 관련
     "케이블TV", "케이블방송", "종합유선방송", "지상파방송사업자", "중계유선방송사업자",
-    "LG헬로비전", "딜라이브", "SK브로드밴드", "HCN", "CMB"
+    "LG헬로비전", "딜라이브", "SK브로드밴드", "HCN", "CMB",
+    # 방송 법령·유료방송 관련
+    "방송법", "데이터방송채널", "유료방송",
 ]
 EXCLUDE_KEYWORDS = []
 # 제목에 아래 문장이 '전부' 포함된 글만 수집 제외 (다른 공시송달 글은 수집 유지)
 EXCLUDE_TITLE_KEYWORDS = [
-    "과태료 고지서 및 독촉장 반송에 따른 공시송달"
+    "과태료 고지서 및 독촉장 반송에 따른 공시송달",
 ]
 
 SEND_EMPTY_MAIL = True
@@ -41,6 +43,10 @@ TEST_BOARDS = os.getenv("TEST_BOARDS", "").strip()
 # --- 백필 모드: YYYY-MM-DD를 넣으면 그 날짜 이후 글을 페이지 넘김으로 전부 수집 ---
 # 비워두면 기존 동작 (1페이지, 어제 이후)
 BACKFILL_FROM = os.getenv("BACKFILL_FROM", "").strip()
+
+# --- 강제 재처리: "1"이면 중복(seen) 기록을 무시하고 다시 요약·적재한다.
+#     (노션 중복 체크가 있어 이미 적재된 글의 중복 적재는 방지됨) ---
+FORCE_REPROCESS = os.getenv("FORCE_REPROCESS", "").strip() == "1"
 
 # --- 메일 설정 ---
 SMTP_SERVER = "smtp.gmail.com"

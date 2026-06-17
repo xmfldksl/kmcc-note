@@ -1,7 +1,7 @@
 import os
 import re
 from datetime import datetime, timedelta
-from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS, BACKFILL_FROM
+from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS, BACKFILL_FROM, FORCE_REPROCESS
 from src.crawler import get_post_list, get_post_detail, FAILED_BOARDS
 from src.storage import load_seen, save_seen, get_hash
 from src.filter import check_keywords, find_keywords_in_text
@@ -24,6 +24,9 @@ def main():
     seen_set = set(seen_hashes)
     matched_items = []
     quota_stop = False
+
+    if FORCE_REPROCESS:
+        print("강제 재처리 모드: seen 기록을 무시하고 다시 처리 (노션 중복은 별도 차단)")
 
     kst_now = datetime.now() + timedelta(hours=9)
     today_str = kst_now.strftime('%Y-%m-%d')
@@ -58,9 +61,9 @@ def main():
                 continue
 
             # --- 사전 중복 검사: 목록 정보만으로 해시를 만들어 이미 처리된 글이면
-            #     상세 페이지 접속 자체를 생략 (재실행 시 접속량 최소화) ---
+            #     상세 페이지 접속 자체를 생략 (강제 재처리 모드에서는 생략 안 함) ---
             list_title = p.get('title', '')
-            if list_date and name != "심결정보":
+            if not FORCE_REPROCESS and list_date and name != "심결정보":
                 if name == "의사일정":
                     att_names = " ".join(a['name'] for a in p.get('attachments', []))
                     pre_title = f"{_meeting_doc_type(att_names)}{list_title}"
@@ -101,9 +104,9 @@ def main():
             modified_title = f"{doc_type}{detail_item['title']}"
             detail_item['title'] = modified_title
 
-            # --- 중복 검사 (상세 단계 최종 확인) ---
+            # --- 중복 검사 (강제 재처리 모드에서는 생략) ---
             p_hash = get_hash(name, modified_title, post_date, "v2")
-            if p_hash in seen_set:
+            if not FORCE_REPROCESS and p_hash in seen_set:
                 print(f"  -> 중복 항목 건너뜀: {modified_title[:15]}")
                 continue
 
@@ -130,8 +133,9 @@ def main():
                 detail_item['matched_keywords'] = merged
 
             matched_items.append(detail_item)
-            new_seen_hashes.append(p_hash)
-            seen_set.add(p_hash)
+            if p_hash not in seen_set:
+                new_seen_hashes.append(p_hash)
+                seen_set.add(p_hash)
             print(f"  -> 신규 항목 수집: {modified_title[:15]}")
 
     # --- 출력 1: 메일 발송 (SKIP_MAIL=1이면 생략, 실패해도 노션 적재는 계속) ---
