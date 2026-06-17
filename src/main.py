@@ -1,7 +1,7 @@
 import os
 import re
 from datetime import datetime, timedelta
-from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS, BACKFILL_FROM, FORCE_REPROCESS
+from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS, BACKFILL_FROM, FORCE_REPROCESS, LOOKBACK_DAYS
 from src.crawler import get_post_list, get_post_detail, FAILED_BOARDS
 from src.storage import load_seen, save_seen, get_hash
 from src.filter import check_keywords, find_keywords_in_text
@@ -30,16 +30,17 @@ def main():
 
     kst_now = datetime.now() + timedelta(hours=9)
     today_str = kst_now.strftime('%Y-%m-%d')
-    yesterday_str = (kst_now - timedelta(days=1)).strftime('%Y-%m-%d')
 
-    # --- 기준 날짜: 백필 모드면 지정 날짜, 아니면 어제 ---
+    # --- 기준 날짜: 백필 모드면 지정 날짜, 아니면 최근 LOOKBACK_DAYS일 ---
     if BACKFILL_FROM and re.fullmatch(r'\d{4}-\d{2}-\d{2}', BACKFILL_FROM):
         base_date = BACKFILL_FROM
         from_date = BACKFILL_FROM
         print(f"백필 모드: {base_date} 이후 글을 페이지 넘김으로 수집")
     else:
-        base_date = yesterday_str
-        from_date = None
+        # 최근 N일을 조회해 하루 실패 시 다음 성공일에 자동 복구되게 함
+        base_date = (kst_now - timedelta(days=LOOKBACK_DAYS)).strftime('%Y-%m-%d')
+        from_date = base_date
+        print(f"정기 실행: 최근 {LOOKBACK_DAYS}일({base_date} 이후) 조회")
 
     # --- 테스트 모드: 지정된 게시판만 실행 ---
     boards = BOARDS

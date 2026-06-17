@@ -37,6 +37,9 @@ EXCLUDE_TITLE_KEYWORDS = [
 
 SEND_EMPTY_MAIL = True
 
+# --- 정기 실행 시 최근 며칠을 조회할지 (하루 실패해도 다음 성공일에 자동 복구) ---
+LOOKBACK_DAYS = 7
+
 # --- 테스트 모드: 쉼표로 구분된 게시판 이름이 있으면 해당 게시판만 실행 ---
 TEST_BOARDS = os.getenv("TEST_BOARDS", "").strip()
 
