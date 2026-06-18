@@ -49,10 +49,10 @@ def send_mail(items, today_str, failed_boards=None):
     - 하단: 최종 수집 실패 게시판 표시
     """
     if items:
-        subject = f"[KMCC] {today_str} 신규 {len(items)}건"
+        subject = f"[방미통위] {today_str} 신규 {len(items)}건"
         body_items = "".join(_build_item_html(i) for i in items)
     else:
-        subject = f"[KMCC] {today_str} 신규 항목 없음"
+        subject = f"[방미통위] {today_str} 신규 항목 없음"
         body_items = "<p>기준 기간 내 신규 등록된 항목이 없습니다.</p>"
 
     notion_html = ""
@@ -61,7 +61,7 @@ def send_mail(items, today_str, failed_boards=None):
         <div style="background:#f0f4ff;border:1px solid #d6e0ff;border-radius:8px;
                     padding:10px 14px;margin-bottom:16px;font-size:13px">
           상세정보 및 과거 수집 내역은 노션 아카이브에서 확인할 수 있습니다.<br>
-          <a href="{NOTION_PAGE_URL}" style="font-weight:bold">&#128214; KMCC 모니터링 아카이브 바로가기</a>
+          <a href="{NOTION_PAGE_URL}" style="font-weight:bold">&#128214; 아카이브 바로가기</a>
         </div>
         """
 
@@ -77,7 +77,7 @@ def send_mail(items, today_str, failed_boards=None):
 
     body = f"""
     <html><body style="font-family:'Malgun Gothic',sans-serif;max-width:680px">
-      <h2 style="font-size:17px">KMCC 모니터링 결과 ({today_str})</h2>
+      <h2 style="font-size:17px">방미통위 모니터링 결과 ({today_str})</h2>
       {notion_html}
       {body_items}
       {fail_html}
