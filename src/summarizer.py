@@ -15,6 +15,9 @@ from src.attachment import get_document_texts
 _exhausted_models = set()
 QUOTA_EXHAUSTED = False
 
+# 의사일정 게시판 회의 문서 종류 우선순위 (앞일수록 우선)
+MEETING_DOC_PRIORITY = ["속기록", "회의록", "의사일정"]
+
 # 피드용 3줄 요약을 별도로 생성할 때 쓰는 프롬프트
 FEED_PROMPT_TEMPLATE = """너는 방송미디어통신위원회(방미통위) 게시판 글의 '전체요약'을 받아 노션 피드용 '3줄 요약'으로 변환하는 변환기다. 아래 규칙을 모두 지켜 요약문만 출력한다.
 
@@ -110,6 +113,41 @@ def _is_meeting_related(item, extra_text=""):
     return any(k in text for k in ("회의록", "속기록", "의사일정"))
 
 
+def _detect_meeting_kind(text):
+    """문서 본문에서 회의 문서 종류(속기록/회의록/의사일정)를 판별한다.
+
+    앞부분(머리말 영역)에서 먼저 찾고, 없으면 전체에서 찾는다.
+    판별 불가 시 None.
+    """
+    if not text:
+        return None
+    head = text[:300]
+    for kind in MEETING_DOC_PRIORITY:
+        if kind in head:
+            return kind
+    for kind in MEETING_DOC_PRIORITY:
+        if kind in text:
+            return kind
+    return None
+
+
+def _select_meeting_doc(target_docs):
+    """의사일정 게시판 문서들 중 우선순위(속기록>회의록>의사일정) 하나만 고른다.
+
+    각 문서 본문으로 종류를 판별해, 가장 우선순위 높은 종류의 문서를 반환한다.
+    종류를 하나도 판별 못 하면 None(=기존처럼 전체 통합 요약).
+    """
+    kind_to_doc = {}
+    for d in target_docs:
+        kind = _detect_meeting_kind(d.get('text', ''))
+        if kind and kind not in kind_to_doc:
+            kind_to_doc[kind] = d
+    for kind in MEETING_DOC_PRIORITY:
+        if kind in kind_to_doc:
+            return kind, kind_to_doc[kind]
+    return None, None
+
+
 def _clean_feed(text):
     """피드 요약 응답을 정리한다.
 
@@ -118,17 +156,12 @@ def _clean_feed(text):
     """
     if not text:
         return ""
-    # 마크다운 기호 제거
     text = re.sub(r'[*_`#>]+', '', text)
-    # 일단 한 줄로 합치기
     text = " ".join(ln.strip() for ln in text.splitlines() if ln.strip())
     text = re.sub(r'\s*[-•]\s*', ' ', text)
     text = re.sub(r'\s{2,}', ' ', text).strip()
-    # 길이 안전장치
     if len(text) > 300:
         text = text[:300].rstrip() + "."
-
-    # 마침표(.) 기준으로 구간을 나눠 줄바꿈 삽입 (마침표는 유지)
     parts = [p.strip() for p in re.split(r'(?<=\.)\s+', text) if p.strip()]
     return "\n".join(parts)
 
@@ -217,6 +250,9 @@ def summarize(item):
 
     전체 요약(첨부 통합 또는 본문)을 만든 뒤, 그 전체요약을 입력으로
     피드용 3줄 요약을 별도 호출로 생성해 item['feed_summary']에 저장한다.
+
+    의사일정 게시판 글에서 첨부가 속기록/회의록/의사일정 여럿이면
+    내용은 결국 동일하므로 우선순위(속기록>회의록>의사일정) 하나만 요약한다.
     """
     item['summary_docs'] = []
     item['feed_summary'] = ""
@@ -226,7 +262,7 @@ def summarize(item):
 
     documents = get_document_texts(item)
 
-    # 노션 첨부/링크용 문서 기록 (요약 제외 문서 포함)
+    # 노션 첨부/링크용 문서 기록 (요약 제외 문서 포함 — 파일은 전부 보존)
     for doc in documents:
         item['summary_docs'].append({
             'doc_name': doc['doc_name'],
@@ -244,9 +280,18 @@ def summarize(item):
         if d not in target_docs:
             print(f"    -> 요약 제외 (양식/서식): {d['doc_name'][:20]}")
 
+    # 의사일정 게시판: 속기록/회의록/의사일정 중 우선순위 하나만 요약
+    if item.get('board_name') == "의사일정" and len(target_docs) > 1:
+        kind, chosen = _select_meeting_doc(target_docs)
+        if chosen is not None:
+            print(f"    -> 회의 문서 종류 '{kind}' 하나만 요약 (속기록>회의록>의사일정)")
+            target_docs = [chosen]
+        else:
+            print("    -> 회의 문서 종류 판별 불가, 전체 통합 요약")
+
     full_summary = None
 
-    # --- 1순위: 첨부 문서 통합 요약 (게시글당 1회 호출) ---
+    # --- 1순위: 첨부 문서 요약 (선별된 문서 기준, 게시글당 1회 호출) ---
     if target_docs:
         doc_names = " ".join(d['doc_name'] for d in target_docs)
         template = MEETING_PROMPT_TEMPLATE if _is_meeting_related(item, doc_names) else PROMPT_TEMPLATE
