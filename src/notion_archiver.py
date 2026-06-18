@@ -68,7 +68,7 @@ def _upload_file(token, filename, data):
     """노션 파일 업로드 API로 파일을 올리고 file_upload ID를 반환한다.
 
     미지원 확장자(hwp/hwpx 등)와 한도 초과 파일은 시도 없이 None을 반환해
-    원본 링크 표시로 대체되게 한다.
+    첨부파일 링크 표시로 대체되게 한다.
     """
     if not data:
         return None
@@ -115,22 +115,19 @@ def _upload_file(token, filename, data):
 
 
 def _build_children(item, uploaded, link_docs):
-    """페이지 본문 블록: 피드요약(맨 위) + 전체요약 토글 + 첨부 + 첨부파일 링크."""
+    """페이지 본문 블록: 피드요약(맨 위) + 전체 요약 토글 + 첨부 + 첨부파일 링크."""
     children = []
 
-    # 1) 피드요약 3줄 (있을 때만, 소제목 없이 본문 맨 위)
+    # 1) 피드요약 (있을 때만, 소제목 없이 본문 맨 위)
+    #    개행이 포함돼 있어도 한 블록 안에 넣어 블록이 나뉘지 않게 한다.
     feed_summary = item.get('feed_summary', '')
     if feed_summary:
-        for line in feed_summary.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            children.append({
-                "object": "block", "type": "paragraph",
-                "paragraph": {"rich_text": [{"text": {"content": line}}]}
-            })
+        children.append({
+            "object": "block", "type": "paragraph",
+            "paragraph": {"rich_text": [{"text": {"content": feed_summary[:2000]}}]}
+        })
 
-    # 2) 전체요약 토글 (피드요약 유무와 무관하게 항상 표시, 접힌 상태로 생성)
+    # 2) 전체 요약 토글 (피드요약 유무와 무관하게 항상 표시, 접힌 상태로 생성)
     summary_children = []
     for chunk in _split_text(item.get('summary', '')):
         summary_children.append({
@@ -181,7 +178,7 @@ def archive_to_notion(items):
     """필터를 통과한 수집 항목들을 노션 데이터베이스에 적재한다.
 
     - 적재 전 제목+날짜 기준으로 중복 조회 후 건너뜀
-    - 본문: 피드요약(맨 위) + 전체요약 토글 + 첨부/첨부파일 링크
+    - 본문: 피드요약(맨 위) + 전체 요약 토글 + 첨부/첨부파일 링크
     - 첨부 문서 파일을 페이지 본문에 직접 업로드 (지원 형식, 5MiB 이하)
     - 미지원 형식(hwp/hwpx 등)·업로드 실패 문서는 첨부파일 링크로 표시
     - 생성된 페이지의 노션 주소를 '요약보기' 속성에 기록
@@ -262,5 +259,6 @@ def archive_to_notion(items):
         except Exception as e:
             print(f"[Notion] 호출 에러: {e}")
         time.sleep(0.5)  # 노션 API 초당 요청 제한(평균 3회) 보호
+
 
 # END OF FILE

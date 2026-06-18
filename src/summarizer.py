@@ -15,62 +15,88 @@ from src.attachment import get_document_texts
 _exhausted_models = set()
 QUOTA_EXHAUSTED = False
 
-# 응답에서 전체 요약과 피드 요약을 구분하는 표지
-FULL_MARKER = "[전체요약]"
-FEED_MARKER = "[피드요약]"
+# 피드용 3줄 요약을 별도로 생성할 때 쓰는 프롬프트
+FEED_PROMPT_TEMPLATE = """너는 방송미디어통신위원회(방미통위) 게시판 글의 '전체요약'을 받아 노션 피드용 '3줄 요약'으로 변환하는 변환기다. 아래 규칙을 모두 지켜 요약문만 출력한다.
+
+[출력 형식]
+- 핵심만 담아 3개 구간 이내로 요약하고, 각 구간은 짧게 쓴다.
+- 설명투(~합니다, ~했다, ~된다)를 쓰지 않고 명사형 줄임체로 끝맺는다(예: 의결, 보고, 추진, 완화, 부과).
+- 줄바꿈 없이 한 줄로 출력한다. 세 구간을 마침표(.)로 구분하고, 마지막 구간 끝에도 마침표를 찍는다.
+- 마크다운 기호(*, #, -, >, 불릿 등)와 머리표를 쓰지 않고 순수 한국어 문장만 쓴다.
+- 요약문만 출력한다. 머리말, 따옴표, 부가 설명을 붙이지 않는다.
+
+[내용 규칙]
+- 무엇에 관한 글인지 한눈에 알 수 있도록 핵심만 담는다.
+- 구체적 날짜, 조항·고시·공고 번호, 기관 주소·부서명 나열은 넣지 않는다.
+- 전체요약에 실제로 등장하는 핵심 키워드는 자연스럽게 포함한다(예: 홈쇼핑, 재승인, 재허가, 송출수수료, 유료방송, IPTV, 종합유선방송, 위성방송, 방송법, 시행령, 데이터방송채널, 일총량제, 중간광고, 가상광고, 간접광고, 시정명령, 의견청취 등 실제 등장한 단어만).
+- 각 구간이 핵심 키워드를 담도록 하되 지나치게 축약하지 않고 적절한 정보량을 유지한다.
+- 통계, 점수, 금액, 유효기간처럼 글의 핵심이 되는 숫자는 유지한다.
+
+[통합·중복 규칙]
+- 여러 첨부문서가 함께 들어오면 모두 하나로 통합해 단일 3줄 요약을 만든다. 문서별로 나누지 않는다.
+- 비슷한 표현을 반복하지 않는다. 특히 의결, 보고, 승인 같은 의사결정 표현이 여러 번 겹치면 하나로 묶거나 다른 표현으로 분산한다.
+- 글 제목에 이미 들어 있는 문구는 요약에서 반복하지 않는다.
+- 회의록 글이면 처리된 핵심 안건 중심으로 요약한다. 단, 글 제목에 회차(예: 17차 회의)가 이미 있으므로 회차나 회의라는 표현은 반복하지 않는다.
+
+[정확성 규칙]
+- 본문에 없는 사실, 수치, 기관, 결과를 추측해서 추가하지 않는다. 주어진 내용만 사용한다.
+
+[예시 1]
+글 제목: (보도자료) 낡은 방송광고 규제 합리적으로 개선한다
+출력: OTT 경쟁 대응 위해 낡은 방송광고 규제 합리적 개선, 방송법 시행령 개정 추진. 일총량제 1일 방송시간 20%로 확대, 중간광고 허용 프로그램 완화 및 횟수 확대. 가상·간접·자막광고 및 데이터방송채널 광고 크기 제한 1/3로 완화.
+
+[예시 2]
+글 제목: 방미통위 15차 회의
+출력: 경남기업 DMB 소유제한 위반에 방송법 위반으로 관계기관 고발 의결. 케이티스카이라이프 위성방송 7년 재허가 및 OBS경인TV 역외 재송신 7년 승인. 2024년도 종편·보도PP 재승인조건 이행실적 점검 보고, MBN 미이행 접수 유보 및 권고사항 미이행 행정지도.
+
+[입력]
+글 제목: {title}
+전체요약: {summary}
+
+[출력]
+"""
 
 PROMPT_TEMPLATE = """다음은 한국 방송미디어통신위원회(KMCC) 게시글에 첨부된 문서들입니다.
 
 게시판: {board}
 게시글 제목: {title}
-핵심 키워드: {keywords}
 
-아래 문서 내용을 두 가지로 요약해 주세요. 반드시 아래 형식을 지키세요.
-
-[전체요약]
+아래 문서 내용을 한국어로 요약해 주세요.
 - 핵심 결정사항, 안건, 일정, 대상 사업자를 중심으로 정리
 - 문서가 여러 개면 각 문서를 【문서명】 제목 아래 구분해 요약
-- 문서당 5개 이내의 짧은 문장 또는 항목
-- 순수 텍스트만 사용(마크다운/HTML 금지), [cite: 숫자] 표기 삭제
+- 문서당 5개 이내의 짧은 문장 또는 항목으로 작성
+- 순수 텍스트만 사용하고 마크다운, HTML 문법을 쓰지 않는다
+- [cite: 숫자] 형태의 출처 표기는 모두 삭제한다
+- 서론이나 맺음말 없이 요약 내용만 출력
 
-[피드요약]
-- SNS 피드 카드에 쓸 초압축 요약
-- 3줄 이내, 각 줄은 짧게(구체적 날짜·조항번호·기관명 나열 금지)
-- 무엇에 관한 글인지 한눈에 알 수 있게 핵심만
-- 핵심 키워드가 있으면 그 단어를 자연스럽게 포함
-- 순수 텍스트만 사용
-
-문서 내용:
 {text}"""
 
 MEETING_PROMPT_TEMPLATE = """다음은 한국 방송미디어통신위원회(KMCC, 방미통위) 회의 관련 게시글에 첨부된 문서들입니다.
 
 게시판: {board}
 게시글 제목: {title}
-핵심 키워드: {keywords}
 
-아래 문서 내용을 두 가지로 요약해 주세요. 반드시 아래 형식을 지키세요.
+아래 문서 내용을 부서 공유 메일용으로 요약해 주세요. 형식 규칙을 반드시 지켜주세요.
 
-[전체요약]
-부서 공유 메일용 정형 요약. 형식 규칙:
-1. 순수 텍스트와 특수기호만 사용(마크다운/굵기 금지). 한 줄 100자 이내.
-2. 번호는 실제 숫자와 마침표(1. 2. 3.)로 표기.
-3. 문서가 여러 개면 각 문서를 【문서명】 아래 구분해 요약.
-4. 특정 차수 회의 관련이면: 첫 줄 [방미통위 N차 회의](차수 불명 시 [방미통위 회의]),
-   이어 "1. 일시 : ", "2. 주요 안건 : 총 N건", "3. 안건 목록" 순.
-   안건은 원문자(① ② ③)로 시작, 의결사항 끝에 "(의결)", 보고사항 끝에 "(보고)",
-   각 안건 다음 줄에 "- " 핵심 한 줄. 회의 결과(의결/부결/보류)가 있으면 포함.
-5. 차수 회의가 아니면 숫자(1. 2.)·원문자(① ②)·"- "로 정리. 결과 내용 포함.
-6. [cite: 숫자] 표기 삭제. 인사말·맺음말 없이 본문만.
+[형식 규칙]
+1. 순수 텍스트와 특수기호만 사용한다. 마크다운, HTML, 굵기 표시를 쓰지 않는다.
+2. 한 줄은 100자를 넘기지 않는다.
+3. 번호는 목록형 문법이 아니라 실제 숫자와 마침표(1. 2. 3.)로 적는다.
+4. 문서가 여러 개면 각 문서를 【문서명】 제목 아래 구분해 요약한다.
+5. 문서가 특정 차수의 회의(의사일정, 회의록, 속기록, N차 위원회 등) 관련이면:
+   첫 줄을 [방미통위 N차 회의] 형태로 쓴다 (차수 확인 불가 시 [방미통위 회의]).
+   이어서 "1. 일시 : ", "2. 주요 안건 : 총 N건", "3. 안건 목록" 순서로 쓴다.
+   주요 안건 수는 의결사항과 보고사항 개수를 합친 수로 적는다.
+   안건 목록의 각 안건은 원문자 번호(① ② ③)로 시작하고
+   의결사항은 제목 끝에 "(의결)", 보고사항은 제목 끝에 "(보고)"를 붙인다.
+   각 안건의 바로 다음 줄에 "- "로 시작하는 핵심 내용 한 줄을 반드시 덧붙인다.
+   회의 결과(의결, 부결, 보류 등)가 문서에 있으면 해당 안건 줄에 그 결과를 포함한다.
+6. 문서가 특정 차수의 회의와 관련이 없으면:
+   숫자와 마침표(1. 2.)로 항목을 나누고, 둘째 깊이는 원문자 번호(① ② ③),
+   셋째 깊이부터는 "- "로 시작해 정리한다. 결과에 관한 내용은 반드시 포함한다.
+7. [cite: 숫자] 형태의 출처 표기는 모두 삭제한다.
+8. 인사말, 맺음말, 부가 설명 없이 요약 본문만 출력한다.
 
-[피드요약]
-- SNS 피드 카드에 쓸 초압축 요약
-- 3줄 이내, 각 줄은 짧게(구체적 날짜·조항번호·기관명 나열 금지)
-- 회의면 차수와 핵심 안건 한두 개만 짧게
-- 핵심 키워드가 있으면 그 단어를 자연스럽게 포함
-- 순수 텍스트만 사용
-
-문서 내용:
 {text}"""
 
 
@@ -84,44 +110,28 @@ def _is_meeting_related(item, extra_text=""):
     return any(k in text for k in ("회의록", "속기록", "의사일정"))
 
 
-def _split_summaries(raw):
-    """모델 응답을 (전체요약, 피드요약)으로 분리한다. 표지가 없으면 전체만 채운다."""
-    if not raw:
-        return "", ""
-    feed_idx = raw.find(FEED_MARKER)
-    full_idx = raw.find(FULL_MARKER)
+def _clean_feed(text):
+    """피드 요약 응답을 정리한다.
 
-    if feed_idx != -1:
-        full_part = raw[:feed_idx]
-        feed_part = raw[feed_idx + len(FEED_MARKER):]
-    else:
-        full_part = raw
-        feed_part = ""
-
-    if full_idx != -1 and (feed_idx == -1 or full_idx < feed_idx):
-        full_part = full_part[full_idx + len(FULL_MARKER):]
-
-    return full_part.strip(), feed_part.strip()
-
-
-def _finalize_feed(feed_text, full_text, keywords):
-    """피드 요약을 3줄 이내로 정리한다.
-
-    키워드는 프롬프트에서 '본문에 있으면 자연스럽게 포함'하도록 유도할 뿐,
-    여기서 억지로 덧붙이지 않는다 (본문에 없으면 포함하지 않아도 됨).
+    마크다운 제거 후 한 줄로 합치고, 마침표(.) 뒤에서 줄을 나눠
+    한 블록 안에 줄바꿈(\\n)이 들어간 형태로 만든다 (블록은 1개, 화면엔 여러 줄).
     """
-    base = feed_text or full_text
-    # 빈 줄 제거 후 최대 3줄
-    lines = [ln.strip() for ln in base.splitlines() if ln.strip()]
-    lines = lines[:3]
-    result = "\n".join(lines)
+    if not text:
+        return ""
+    # 마크다운 기호 제거
+    text = re.sub(r'[*_`#>]+', '', text)
+    # 일단 한 줄로 합치기
+    text = " ".join(ln.strip() for ln in text.splitlines() if ln.strip())
+    text = re.sub(r'\s*[-•]\s*', ' ', text)
+    text = re.sub(r'\s{2,}', ' ', text).strip()
+    # 길이 안전장치
+    if len(text) > 300:
+        text = text[:300].rstrip() + "."
 
-    # 길이 안전장치 (너무 길면 자름)
-    if len(result) > 240:
-        result = result[:240].rstrip() + "…"
+    # 마침표(.) 기준으로 구간을 나눠 줄바꿈 삽입 (마침표는 유지)
+    parts = [p.strip() for p in re.split(r'(?<=\.)\s+', text) if p.strip()]
+    return "\n".join(parts)
 
-    return result.strip()
-    
 
 def _call_model(model, prompt):
     """특정 모델을 호출한다. 반환: (응답문 또는 None, 한도소진 여부)"""
@@ -184,20 +194,35 @@ def _call_gemini(prompt):
     return None
 
 
-def summarize(item):
-    """게시글의 요약문을 생성한다 (게시글당 Gemini 호출 1회).
+def _make_feed_summary(item, full_summary):
+    """전체요약을 받아 피드용 3줄 요약(마침표 뒤 줄바꿈 포함)을 생성한다.
 
-    전체 요약과 피드용 초압축 요약(3줄 이내)을 한 번의 호출로 함께 생성한다.
-    피드 요약은 item['feed_summary']에 저장된다.
+    별도 Gemini 호출이 1회 추가된다. 한도 소진 시 빈 문자열을 반환한다.
+    """
+    if QUOTA_EXHAUSTED or not full_summary:
+        return ""
+    prompt = FEED_PROMPT_TEMPLATE.format(
+        title=item.get('title', ''),
+        summary=full_summary[:8000],
+    )
+    raw = _call_gemini(prompt)
+    time.sleep(GEMINI_CALL_INTERVAL)
+    if QUOTA_EXHAUSTED or not raw:
+        return ""
+    return _clean_feed(raw)
+
+
+def summarize(item):
+    """게시글의 요약문을 생성한다.
+
+    전체 요약(첨부 통합 또는 본문)을 만든 뒤, 그 전체요약을 입력으로
+    피드용 3줄 요약을 별도 호출로 생성해 item['feed_summary']에 저장한다.
     """
     item['summary_docs'] = []
     item['feed_summary'] = ""
 
     if QUOTA_EXHAUSTED:
         return None
-
-    keywords = item.get('matched_keywords', [])
-    keywords_str = ", ".join(keywords) if keywords else "(없음)"
 
     documents = get_document_texts(item)
 
@@ -219,16 +244,7 @@ def summarize(item):
         if d not in target_docs:
             print(f"    -> 요약 제외 (양식/서식): {d['doc_name'][:20]}")
 
-    def _run(template, text_block):
-        prompt = template.format(
-            board=item.get('board_name', ''),
-            title=item.get('title', ''),
-            keywords=keywords_str,
-            text=text_block,
-        )
-        raw = _call_gemini(prompt)
-        time.sleep(GEMINI_CALL_INTERVAL)
-        return raw
+    full_summary = None
 
     # --- 1순위: 첨부 문서 통합 요약 (게시글당 1회 호출) ---
     if target_docs:
@@ -241,35 +257,47 @@ def summarize(item):
             combined += f"\n\n===== 문서: {d['doc_name']} =====\n{d['text'][:per_doc_limit]}"
         combined = combined[:MAX_EXTRACT_CHARS]
 
+        prompt = template.format(
+            board=item.get('board_name', ''),
+            title=item.get('title', ''),
+            text=f"문서 내용:{combined}",
+        )
         print(f"    -> Gemini 통합 요약 요청 (문서 {len(target_docs)}개)")
-        raw = _run(template, combined)
+        result = _call_gemini(prompt)
+        time.sleep(GEMINI_CALL_INTERVAL)
 
         if QUOTA_EXHAUSTED:
             return None
-        if raw:
-            full, feed = _split_summaries(raw)
-            item['feed_summary'] = _finalize_feed(feed, full, keywords)
-            if full:
-                return full
+        if result:
+            full_summary = result
 
     # --- 2순위: 게시글 본문 요약 ---
-    content = (item.get('content') or '').strip()
-    if content and not QUOTA_EXHAUSTED:
-        template = MEETING_PROMPT_TEMPLATE if _is_meeting_related(item, "게시글 본문") else PROMPT_TEMPLATE
-        print("    -> Gemini 요약 요청: 게시글 본문")
-        raw = _run(template, content[:10000])
-        if QUOTA_EXHAUSTED:
-            return None
-        if raw:
-            full, feed = _split_summaries(raw)
-            item['feed_summary'] = _finalize_feed(feed, full, keywords)
-            if full:
-                return full
+    if not full_summary:
+        content = (item.get('content') or '').strip()
+        if content and not QUOTA_EXHAUSTED:
+            template = MEETING_PROMPT_TEMPLATE if _is_meeting_related(item, "게시글 본문") else PROMPT_TEMPLATE
+            prompt = template.format(
+                board=item.get('board_name', ''),
+                title=item.get('title', ''),
+                text=f"문서 내용:\n{content[:10000]}",
+            )
+            print("    -> Gemini 요약 요청: 게시글 본문")
+            result = _call_gemini(prompt)
+            time.sleep(GEMINI_CALL_INTERVAL)
+            if QUOTA_EXHAUSTED:
+                return None
+            if result:
+                full_summary = result
+
+    # --- 전체요약 확보 시 피드용 3줄 요약 별도 생성 ---
+    if full_summary:
+        print("    -> Gemini 피드요약 요청")
+        item['feed_summary'] = _make_feed_summary(item, full_summary)
+        return full_summary
 
     # --- 3순위: 본문 앞부분 (기존 방식) ---
     print("    -> Gemini 요약 실패, 본문 앞부분으로 대체")
-    fallback = content[:500] if content else "(내용 없음)"
-    item['feed_summary'] = _finalize_feed("", fallback, keywords)
-    return fallback
+    content = (item.get('content') or '').strip()
+    return content[:500] if content else "(내용 없음)"
 
 # END OF FILE
