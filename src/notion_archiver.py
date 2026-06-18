@@ -115,21 +115,37 @@ def _upload_file(token, filename, data):
 
 
 def _build_children(item, uploaded, link_docs):
-    """페이지 본문 블록: 요약 전체 + 업로드된 첨부파일 + (미지원/실패분만) 원본 문서 링크."""
+    """페이지 본문 블록: 피드요약(맨 위) + 전체요약 토글 + 첨부 + 원본 링크."""
     children = []
 
-    # 요약 본문
-    children.append({
-        "object": "block", "type": "heading_2",
-        "heading_2": {"rich_text": [{"text": {"content": "요약"}}]}
-    })
+    # 1) 피드요약 3줄 (있을 때만, 소제목 없이 본문 맨 위)
+    feed_summary = item.get('feed_summary', '')
+    if feed_summary:
+        for line in feed_summary.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            children.append({
+                "object": "block", "type": "paragraph",
+                "paragraph": {"rich_text": [{"text": {"content": line}}]}
+            })
+
+    # 2) 전체요약 토글 (피드요약 유무와 무관하게 항상 표시, 접힌 상태로 생성)
+    summary_children = []
     for chunk in _split_text(item.get('summary', '')):
-        children.append({
+        summary_children.append({
             "object": "block", "type": "paragraph",
             "paragraph": {"rich_text": [{"text": {"content": chunk}}]}
         })
+    children.append({
+        "object": "block", "type": "toggle",
+        "toggle": {
+            "rich_text": [{"text": {"content": "전체요약"}}],
+            "children": summary_children,
+        }
+    })
 
-    # 업로드된 첨부파일
+    # 3) 업로드된 첨부파일
     if uploaded:
         children.append({
             "object": "block", "type": "heading_2",
@@ -141,7 +157,7 @@ def _build_children(item, uploaded, link_docs):
                 "file": {"type": "file_upload", "file_upload": {"id": upload_id}}
             })
 
-    # 업로드하지 못한 문서만 원본 링크로 표시
+    # 4) 업로드하지 못한 문서만 원본 링크로 표시
     if link_docs:
         children.append({
             "object": "block", "type": "heading_2",
@@ -165,6 +181,7 @@ def archive_to_notion(items):
     """필터를 통과한 수집 항목들을 노션 데이터베이스에 적재한다.
 
     - 적재 전 제목+날짜 기준으로 중복 조회 후 건너뜀
+    - 본문: 피드요약(맨 위) + 전체요약 토글 + 첨부/원본 링크
     - 첨부 문서 파일을 페이지 본문에 직접 업로드 (지원 형식, 5MiB 이하)
     - 미지원 형식(hwp/hwpx 등)·업로드 실패 문서는 원본 다운로드 링크로 표시
     - 생성된 페이지의 노션 주소를 '요약보기' 속성에 기록
