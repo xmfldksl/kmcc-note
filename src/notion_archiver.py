@@ -206,6 +206,11 @@ def archive_to_notion(items):
                 properties["키워드"] = {
                     "multi_select": [{"name": kw} for kw in keywords]
                 }
+            feed_summary = item.get('feed_summary', '')
+            if feed_summary:
+                properties["피드요약"] = {
+                    "rich_text": [{"text": {"content": feed_summary[:2000]}}]
+                }
 
             payload = {
                 "parent": {"database_id": database_id},
