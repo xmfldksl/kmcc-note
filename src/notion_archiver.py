@@ -115,7 +115,7 @@ def _upload_file(token, filename, data):
 
 
 def _build_children(item, uploaded, link_docs):
-    """페이지 본문 블록: 피드요약(맨 위) + 전체요약 토글 + 첨부 + 원본 링크."""
+    """페이지 본문 블록: 피드요약(맨 위) + 전체요약 토글 + 첨부 + 첨부파일 링크."""
     children = []
 
     # 1) 피드요약 3줄 (있을 때만, 소제목 없이 본문 맨 위)
@@ -157,11 +157,11 @@ def _build_children(item, uploaded, link_docs):
                 "file": {"type": "file_upload", "file_upload": {"id": upload_id}}
             })
 
-    # 4) 업로드하지 못한 문서만 원본 링크로 표시
+    # 4) 업로드하지 못한 문서만 첨부파일 링크로 표시
     if link_docs:
         children.append({
             "object": "block", "type": "heading_2",
-            "heading_2": {"rich_text": [{"text": {"content": "원본 문서 링크"}}]}
+            "heading_2": {"rich_text": [{"text": {"content": "첨부파일 링크"}}]}
         })
         for doc in link_docs:
             children.append({
@@ -181,9 +181,9 @@ def archive_to_notion(items):
     """필터를 통과한 수집 항목들을 노션 데이터베이스에 적재한다.
 
     - 적재 전 제목+날짜 기준으로 중복 조회 후 건너뜀
-    - 본문: 피드요약(맨 위) + 전체요약 토글 + 첨부/원본 링크
+    - 본문: 피드요약(맨 위) + 전체요약 토글 + 첨부/첨부파일 링크
     - 첨부 문서 파일을 페이지 본문에 직접 업로드 (지원 형식, 5MiB 이하)
-    - 미지원 형식(hwp/hwpx 등)·업로드 실패 문서는 원본 다운로드 링크로 표시
+    - 미지원 형식(hwp/hwpx 등)·업로드 실패 문서는 첨부파일 링크로 표시
     - 생성된 페이지의 노션 주소를 '요약보기' 속성에 기록
     - 노션 장애가 메일 발송을 막지 않도록 실패 시 로그만 남긴다
     """
