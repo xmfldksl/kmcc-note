@@ -7,8 +7,8 @@ from src.config import (
     NOTION_PAGE_URL,
 )
 
-# 메일 전체 공통 폰트 (맑은 고딕, 10pt, 검정)
-BASE_FONT = "font-family:'Malgun Gothic',sans-serif;font-size:10pt;color:#000000"
+# 메일 전체 공통 폰트 (맑은 고딕, 10pt, 색상은 클라이언트 기본값 = 다크모드 대응)
+BASE_FONT = "font-family:'Malgun Gothic',sans-serif;font-size:10pt"
 
 
 def _build_item_html(item):
@@ -50,7 +50,7 @@ def send_mail(items, today_str, failed_boards=None):
 
     - 상단: 노션 안내 (NOTION_PAGE_URL 설정 시)
     - 하단: 최종 수집 실패 게시판 표시
-    - 배경색 미사용, 맑은 고딕 10pt 검정으로 통일
+    - 배경색 미사용, 맑은 고딕 10pt, 폰트 색상은 클라이언트 기본값(다크모드 대응)
     """
     if items:
         subject = f"[방미통위] {today_str} 신규 {len(items)}건"
