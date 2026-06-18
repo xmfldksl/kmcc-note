@@ -2,8 +2,10 @@ name: KMCC Note
 
 on:
   schedule:
-    - cron: '57 1 * * 1-5'   # KST 10:57, 월-금 (UTC 01:57)
-    - cron: '57 5 * * 1-5'   # KST 14:57, 월-금 (UTC 05:57)
+    # KST 08:27 = UTC 23:57 (전날) → 한국 월-금에 맞추려면 UTC 일-목(0-4)
+    - cron: '57 23 * * 0-4'
+    # KST 12:27 = UTC 03:27 → 한국 월-금 = UTC 월-금(1-5)
+    - cron: '27 3 * * 1-5'
   workflow_dispatch:          # 수동 실행 버튼
     inputs:
       test_boards:
