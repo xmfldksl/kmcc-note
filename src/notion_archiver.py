@@ -140,7 +140,7 @@ def _build_children(item, uploaded, link_docs):
     children.append({
         "object": "block", "type": "toggle",
         "toggle": {
-            "rich_text": [{"text": {"content": "전체요약"}}],
+            "rich_text": [{"text": {"content": "전체 요약"}}],
             "children": summary_children,
         }
     })
