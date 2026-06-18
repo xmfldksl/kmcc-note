@@ -30,14 +30,14 @@ def _build_item_html(item):
     kw_line = f"<p style='margin:4px 0'>연관 키워드 : {keywords}</p>" if keywords else ""
 
     return f"""
-    <div style="border:1px solid #ddd;border-radius:8px;padding:14px;margin-bottom:14px">
+    <div style="padding:0;margin-bottom:22px">
       <p style="margin:0 0 6px 0">
         <span style="font-weight:bold">{board}</span>
         <span style="font-weight:bold">{date}</span>
       </p>
       <p style="margin:0 0 8px 0"><b><a href="{url}">{title}</a></b></p>
       {kw_line}
-      <div style="padding:10px 0;line-height:1.6">
+      <div style="padding:6px 0;line-height:1.6">
         {summary}
       </div>
       {doc_links}
@@ -50,7 +50,7 @@ def send_mail(items, today_str, failed_boards=None):
 
     - 상단: 노션 안내 (NOTION_PAGE_URL 설정 시)
     - 하단: 최종 수집 실패 게시판 표시
-    - 배경색 미사용, 맑은 고딕 10pt, 폰트 색상은 클라이언트 기본값(다크모드 대응)
+    - 배경색·테두리 미사용, 맑은 고딕 10pt, 폰트 색상은 클라이언트 기본값(다크모드 대응)
     """
     if items:
         subject = f"[방미통위] {today_str} 신규 {len(items)}건"
@@ -62,7 +62,7 @@ def send_mail(items, today_str, failed_boards=None):
     notion_html = ""
     if NOTION_PAGE_URL and NOTION_PAGE_URL.startswith("http"):
         notion_html = f"""
-        <div style="border:1px solid #d6e0ff;border-radius:8px;padding:10px 14px;margin-bottom:16px">
+        <div style="padding:0;margin-bottom:16px">
           과거 수집 내역은 노션에서 확인할 수 있습니다.<br>
           <a href="{NOTION_PAGE_URL}" style="font-weight:bold">&#128214; 노션 바로가기</a>
         </div>
@@ -72,8 +72,7 @@ def send_mail(items, today_str, failed_boards=None):
     if failed_boards:
         fail_list = html.escape(", ".join(failed_boards))
         fail_html = (
-            f"<hr style='border:none;border-top:1px solid #eee;margin:18px 0 8px 0'>"
-            f"<p style='margin:0'>"
+            f"<p style='margin:18px 0 0 0'>"
             f"수집 실패 게시판: {fail_list}<br>"
             f"(네트워크 차단 또는 사이트 장애 가능성 — 해당 게시판의 신규 글이 누락되었을 수 있습니다)</p>"
         )
