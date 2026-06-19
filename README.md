@@ -8,7 +8,7 @@ It is designed to track daily policy trends and committee schedules on specific 
 
 ## Features
 
-- **Automated collection**: Crawls 12 boards every weekday at 11:00 (KST) via GitHub Actions.
+- **Automated collection**: Crawls 12 boards every weekday via GitHub Actions.
 - **Keyword filtering**: Always collects committee schedules and committee-result press releases; other posts are filtered by predefined keywords (title + body).
 - **Attachment summarization**: Downloads post attachments (PDF / HWPX / HWP), extracts the text, and summarizes it with the Gemini API. When a filename is garbled, the file format is detected by its content signature (magic bytes).
 - **Meeting summary format**: Meeting documents such as agendas, minutes, and transcripts are summarized in a fixed format for internal sharing (committee session number, per-item resolution/report classification, etc.).
@@ -142,7 +142,7 @@ The integration must be connected to the database page for API access.
 
 ## 주요 기능
 
-- **자동 수집**: 깃허브 액션으로 평일 오전 11시(KST)에 12개 게시판을 자동 크롤링합니다.
+- **자동 수집**: 깃허브 액션으로 평일에 12개 게시판을 자동 크롤링합니다.
 - **키워드 필터링**: 의사일정과 위원회 결과 보도자료는 필수 수집하고, 그 외 글은 사전 정의한 키워드(제목+본문)로 선별합니다.
 - **첨부파일 본문 요약**: 게시글 첨부파일(PDF / HWPX / HWP)을 직접 다운로드해 본문을 추출하고 Gemini API로 요약합니다. 파일명이 깨진 경우 내용 시그니처(매직 바이트)로 형식을 판별합니다.
 - **회의 요약 양식**: 의사일정·회의록·속기록 등 회의 문서는 부서 공유용 정형 양식(회의 차수, 안건별 의결/보고 구분 등)으로 요약합니다.
