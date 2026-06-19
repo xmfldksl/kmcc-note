@@ -110,7 +110,7 @@ The integration must be connected to the database page for API access.
 
 ## Operational Notes
 
-- Scheduled runs are performed by GitHub Actions (weekdays at 11:00 KST).
+- Scheduled runs are performed by GitHub Actions.
 - Because Korean public-sector sites tend to block overseas IP ranges, large-scale collection (backfill) is recommended to run from a domestic IP environment.
 - To cope with the Gemini free-tier daily limit, a lightweight model is used first and automatically switches to a higher-tier model when the quota is exhausted.
 
@@ -244,7 +244,7 @@ python -m src.main
 
 ## 운영 참고
 
-- 정기 실행은 깃허브 액션(평일 오전 11시)에서 수행합니다.
+- 정기 실행은 깃허브 액션에서 수행합니다.
 - 한국 공공기관 사이트의 해외 IP 차단 특성상, 대량 수집(백필)은 국내 IP 환경에서 실행하는 것을 권장합니다.
 - Gemini 무료 등급의 일일 한도에 대응해 경량 모델을 우선 사용하고, 한도 소진 시 상위 모델로 자동 전환합니다.
 
