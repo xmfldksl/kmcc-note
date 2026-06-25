@@ -2,7 +2,7 @@ name: KMCC Note
 
 on:
   schedule:
-    - cron: '13 3 * * 1-5'    # KST 12:13 (UTC 03:13), 월-금
+    - cron: '13 2 * * 1-5'    # KST 11:13 (UTC 02:13), 월-금
     - cron: '13 7 * * 1-5'    # KST 16:13 (UTC 07:13), 월-금
   workflow_dispatch:          # 수동 실행 버튼
     inputs:
