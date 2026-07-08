@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import time
 import requests
@@ -8,6 +9,7 @@ from src.config import (
     GEMINI_CALL_INTERVAL,
     MAX_EXTRACT_CHARS,
     SKIP_SUMMARY_PATTERNS,
+    ATTACHMENT_PRIORITY,
 )
 from src.attachment import get_document_texts
 
@@ -148,6 +150,51 @@ def _select_meeting_doc(target_docs):
     return None, None
 
 
+def _doc_ext(name):
+    """파일명에서 소문자 확장자(.pdf 등)를 반환한다. 없으면 빈 문자열."""
+    return os.path.splitext(name or '')[1].lower()
+
+
+def _dedupe_docs_by_stem(docs):
+    """파일명이 같고 확장자만 다른 문서들은 우선순위 형식 하나만 남긴다.
+
+    같은 문서를 pdf/hwpx/hwp 등 여러 형식으로 함께 첨부하는 경우 대비.
+    선택 기준: ATTACHMENT_PRIORITY(.pdf > .hwpx > .hwp) 순.
+    우선순위 확장자가 하나도 없으면 그룹의 첫 문서를 쓴다.
+    (파일 자체는 전부 노션에 보존되며, 요약 대상만 좁힌다)
+    """
+    groups = {}
+    order = []
+    for d in docs:
+        base = d.get('file_name') or d.get('doc_name') or ''
+        stem = os.path.splitext(base)[0].strip()
+        if stem not in groups:
+            groups[stem] = []
+            order.append(stem)
+        groups[stem].append(d)
+
+    result = []
+    for stem in order:
+        group = groups[stem]
+        if len(group) == 1:
+            result.append(group[0])
+            continue
+        chosen = None
+        for ext in ATTACHMENT_PRIORITY:
+            for d in group:
+                if _doc_ext(d.get('file_name') or d.get('doc_name')) == ext:
+                    chosen = d
+                    break
+            if chosen:
+                break
+        if chosen is None:
+            chosen = group[0]
+        print(f"    -> 동일 문서 {len(group)}개(형식만 다름) 중 1개만 요약: "
+              f"{stem[:25]}{_doc_ext(chosen.get('file_name') or chosen.get('doc_name'))}")
+        result.append(chosen)
+    return result
+
+
 def _clean_feed(text):
     """피드 요약 응답을 정리한다.
 
@@ -251,8 +298,10 @@ def summarize(item):
     전체 요약(첨부 통합 또는 본문)을 만든 뒤, 그 전체요약을 입력으로
     피드용 3줄 요약을 별도 호출로 생성해 item['feed_summary']에 저장한다.
 
-    의사일정 게시판 글에서 첨부가 속기록/회의록/의사일정 여럿이면
-    내용은 결국 동일하므로 우선순위(속기록>회의록>의사일정) 하나만 요약한다.
+    - 파일명이 같고 확장자만 다른 첨부(pdf/hwpx/hwp 병행 게시)는
+      ATTACHMENT_PRIORITY 순으로 하나만 요약한다.
+    - 의사일정 게시판 글에서 첨부가 속기록/회의록/의사일정 여럿이면
+      우선순위(속기록>회의록>의사일정) 하나만 요약한다.
     """
     item['summary_docs'] = []
     item['feed_summary'] = ""
@@ -279,6 +328,10 @@ def summarize(item):
     for d in documents:
         if d not in target_docs:
             print(f"    -> 요약 제외 (양식/서식): {d['doc_name'][:20]}")
+
+    # 같은 이름·다른 확장자 첨부는 우선순위 형식 하나만 요약
+    if len(target_docs) > 1:
+        target_docs = _dedupe_docs_by_stem(target_docs)
 
     # 의사일정 게시판: 속기록/회의록/의사일정 중 우선순위 하나만 요약
     if item.get('board_name') == "의사일정" and len(target_docs) > 1:
