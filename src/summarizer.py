@@ -255,7 +255,13 @@ def _call_model(model, prompt):
 
 
 def _call_gemini(prompt):
-    """모델 체인을 따라 호출한다. 앞 모델의 일일 한도가 소진되면 다음 모델로 전환."""
+    """모델 체인을 따라 호출한다.
+
+    한 모델이 최종 실패하면 원인과 무관하게 다음 모델을 시도한다
+    (429 한도 소진, 5xx 서버 장애, 기타 오류 모두 포함).
+    한도 소진(429)으로 실패한 모델만 이후 호출에서 제외 목록에 넣고,
+    전 모델이 한도 소진이면 QUOTA_EXHAUSTED를 켠다.
+    """
     global QUOTA_EXHAUSTED
 
     for model in GEMINI_MODELS:
@@ -267,8 +273,8 @@ def _call_gemini(prompt):
         if rate_limited:
             _exhausted_models.add(model)
             print(f"    -> [{model}] 일일 한도 소진으로 판단, 다음 모델로 전환")
-            continue
-        return None
+        else:
+            print(f"    -> [{model}] 실패 (서버 오류 등), 다음 모델로 전환")
 
     if all(m in _exhausted_models for m in GEMINI_MODELS):
         QUOTA_EXHAUSTED = True
