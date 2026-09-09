@@ -19,6 +19,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 OLE_SIGNATURE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
+# 텍스트 추출을 지원하는 형식 (md/txt는 파일 내용을 그대로 텍스트로 사용)
+TEXT_EXTS = (".md", ".txt")
+SUPPORTED_EXTS = (".pdf", ".hwpx", ".hwp") + TEXT_EXTS
+
 
 def _is_garbled(name):
     """인코딩 깨짐(대체 문자 포함) 여부를 판별한다."""
@@ -38,7 +42,7 @@ def _sniff_ext(data):
 
 def group_documents(attachments):
     """첨부파일을 문서 단위(확장자 제외 파일명)로 묶고,
-    각 문서마다 우선순위(PDF > HWPX > HWP)가 가장 높은 파일 1개를 고른다.
+    각 문서마다 우선순위(PDF > HWPX > HWP > MD)가 가장 높은 파일 1개를 고른다.
     확장자를 알 수 없는 파일(파일명 깨짐 등)은 다운로드 후 시그니처로 판별한다(ext=None).
     """
     groups = {}
@@ -62,6 +66,13 @@ def group_documents(attachments):
                     break
             if chosen:
                 break
+
+        if chosen is None:
+            # 우선순위 매칭 실패: 지원 텍스트 형식(.txt 등)이면 그대로 사용
+            for f in files:
+                if f['ext'] in SUPPORTED_EXTS:
+                    chosen = f
+                    break
 
         if chosen is None:
             # 확장자 매칭 실패: 깨진 파일명 등 → 내용 시그니처로 판별하기 위해 포함
@@ -181,6 +192,20 @@ def extract_hwp_text(data):
         ole.close()
 
 
+def extract_text_file(data):
+    """md/txt 등 일반 텍스트 파일 바이트를 문자열로 읽는다.
+
+    UTF-8(BOM 포함) 우선, 실패 시 CP949(한글 윈도우)로 시도한다.
+    마크다운 서식 기호는 요약 입력에 무해하므로 별도 제거하지 않는다.
+    """
+    for enc in ("utf-8-sig", "cp949"):
+        try:
+            return data.decode(enc)
+        except (UnicodeDecodeError, ValueError):
+            continue
+    return data.decode("utf-8", errors="ignore")
+
+
 def get_document_texts(item):
     """게시글의 모든 첨부 문서(문서 단위)에서 텍스트를 추출한다.
 
@@ -203,7 +228,7 @@ def get_document_texts(item):
             continue
 
         ext = doc['ext'] or _sniff_ext(data)
-        if ext not in (".pdf", ".hwpx", ".hwp"):
+        if ext not in SUPPORTED_EXTS:
             print(f"    -> [건너뜀] 지원하지 않는 파일 형식: {doc['name'][:30]}")
             continue
 
@@ -212,8 +237,10 @@ def get_document_texts(item):
                 text = extract_pdf_text(data)
             elif ext == ".hwpx":
                 text = extract_hwpx_text(data)
-            else:
+            elif ext == ".hwp":
                 text = extract_hwp_text(data)
+            else:
+                text = extract_text_file(data)
         except Exception as e:
             print(f"    -> 텍스트 추출 실패 ({ext}): {e}")
             continue

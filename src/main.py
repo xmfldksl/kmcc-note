@@ -1,13 +1,20 @@
 import os
 import re
 from datetime import datetime, timedelta
-from src.config import BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS, BACKFILL_FROM, FORCE_REPROCESS, LOOKBACK_DAYS
+from src.config import (
+    BOARDS, SEND_EMPTY_MAIL, TEST_BOARDS, BACKFILL_FROM, FORCE_REPROCESS,
+    LOOKBACK_DAYS,
+)
 from src.crawler import get_post_list, get_post_detail, FAILED_BOARDS
 from src.storage import load_seen, save_seen, get_hash
 from src.filter import check_keywords, find_keywords_in_text
 from src import summarizer
 from src.mailer import send_mail
 from src.notion_archiver import archive_to_notion
+
+# 날짜 필터를 적용하지 않는 게시판: 글 작성일이 그대로인 채
+# 회의록·속기록이 나중에 추가되므로, 1페이지 전체를 항상 해시 검사까지 진행
+DATE_FILTER_EXEMPT_BOARDS = {"의사일정"}
 
 
 def _meeting_doc_type(att_names):
@@ -30,6 +37,7 @@ def main():
 
     kst_now = datetime.now() + timedelta(hours=9)
     today_str = kst_now.strftime('%Y-%m-%d')
+    lookback_str = (kst_now - timedelta(days=LOOKBACK_DAYS)).strftime('%Y-%m-%d')
 
     # --- 기준 날짜: 백필 모드면 지정 날짜, 아니면 최근 LOOKBACK_DAYS일 ---
     if BACKFILL_FROM and re.fullmatch(r'\d{4}-\d{2}-\d{2}', BACKFILL_FROM):
@@ -37,9 +45,8 @@ def main():
         from_date = BACKFILL_FROM
         print(f"백필 모드: {base_date} 이후 글을 페이지 넘김으로 수집")
     else:
-        # 최근 N일을 조회해 하루 실패 시 다음 성공일에 자동 복구되게 함
-        base_date = (kst_now - timedelta(days=LOOKBACK_DAYS)).strftime('%Y-%m-%d')
-        from_date = base_date
+        base_date = lookback_str
+        from_date = None
         print(f"정기 실행: 최근 {LOOKBACK_DAYS}일({base_date} 이후) 조회")
 
     # --- 테스트 모드: 지정된 게시판만 실행 ---
@@ -54,11 +61,14 @@ def main():
     for name, params in boards.items():
         if quota_stop:
             break
+        # 의사일정 게시판은 날짜 필터를 적용하지 않는다
+        # (작성일이 오래된 글에도 회의록·속기록이 추가되면 태그 변경으로 감지)
+        date_exempt = name in DATE_FILTER_EXEMPT_BOARDS and not from_date
         posts = get_post_list(name, params, from_date=from_date)
         for p in posts:
-            # --- 1차 필터: 목록의 등록일이 기준보다 오래되면 건너뜀 ---
+            # --- 1차 필터: 목록의 등록일이 기준보다 오래되면 건너뜀 (예외 게시판 제외) ---
             list_date = p.get('date')
-            if list_date and list_date < base_date:
+            if not date_exempt and list_date and list_date < base_date:
                 continue
 
             # --- 사전 중복 검사: 목록 정보만으로 해시를 만들어 이미 처리된 글이면
@@ -77,7 +87,7 @@ def main():
             detail_item = get_post_detail(p)
             post_date = detail_item.get('date', '1970-01-01')
 
-            if post_date < base_date:
+            if not date_exempt and post_date < base_date:
                 continue
 
             # --- 수집 대상 판정 ---

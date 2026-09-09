@@ -37,14 +37,14 @@ EXCLUDE_TITLE_KEYWORDS = [
 
 SEND_EMPTY_MAIL = True
 
-# --- 정기 실행 시 최근 며칠을 조회할지 (하루 실패해도 다음 성공일에 자동 복구) ---
+# --- 정기 조회 기간(일): 실행 실패가 있어도 다음 성공 실행이 이 기간 내 글을 복구 수집 ---
 LOOKBACK_DAYS = 7
 
 # --- 테스트 모드: 쉼표로 구분된 게시판 이름이 있으면 해당 게시판만 실행 ---
 TEST_BOARDS = os.getenv("TEST_BOARDS", "").strip()
 
 # --- 백필 모드: YYYY-MM-DD를 넣으면 그 날짜 이후 글을 페이지 넘김으로 전부 수집 ---
-# 비워두면 기존 동작 (1페이지, 어제 이후)
+# 비워두면 기존 동작 (1페이지, LOOKBACK_DAYS 기준)
 BACKFILL_FROM = os.getenv("BACKFILL_FROM", "").strip()
 
 # --- 강제 재처리: "1"이면 중복(seen) 기록을 무시하고 다시 요약·적재한다.
@@ -59,7 +59,7 @@ SMTP_APP_PASSWORD = os.getenv("SMTP_APP_PASSWORD")
 MAIL_TO = os.getenv("MAIL_TO")
 
 # --- 노션 아카이브 안내 (메일 상단에 표시할 공유 링크, 비우면 안내 미표시) ---
-NOTION_PAGE_URL = "https://app.notion.com/p/37ba1f8c0e2e806a867cc5fe64ac23dd"
+NOTION_PAGE_URL = "여기에_노션_공유_링크_붙여넣기"
 
 # --- Gemini 요약 설정 ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -70,7 +70,7 @@ MAX_EXTRACT_CHARS = 30000
 # Gemini 호출 사이 대기 시간(초): 무료 등급 분당 요청 제한 회피
 GEMINI_CALL_INTERVAL = 12
 # 첨부파일 처리 우선순위 (앞에 있을수록 우선)
-ATTACHMENT_PRIORITY = [".pdf", ".hwpx", ".hwp"]
+ATTACHMENT_PRIORITY = [".pdf", ".hwpx", ".hwp", ".md"]
 # 요약에서 제외할 문서명 패턴 (파일 첨부는 유지)
 SKIP_SUMMARY_PATTERNS = ["양식", "서식"]
 
