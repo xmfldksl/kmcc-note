@@ -1,9 +1,11 @@
+# 로컬 launchd로 실행 중 (local/README.md 참고, 2026-10-13~), Actions 복구 시 아래 schedule 주석 해제.
+# 되돌리기 전에 local/uninstall.sh로 launchd 에이전트를 먼저 해제해 이중 실행을 막는다.
 name: KMCC Note
 
 on:
-  schedule:
-    - cron: '13 2 * * 1-5'    # KST 11:13 (UTC 02:13), 월-금
-    - cron: '13 7 * * 1-5'    # KST 16:13 (UTC 07:13), 월-금
+  # schedule:
+  #   - cron: '13 2 * * 1-5'    # KST 11:13 (UTC 02:13), 월-금
+  #   - cron: '13 7 * * 1-5'    # KST 16:13 (UTC 07:13), 월-금
   workflow_dispatch:          # 수동 실행 버튼
     inputs:
       test_boards:
