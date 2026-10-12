@@ -1,7 +1,8 @@
 import hashlib
 import os
 
-SEEN_FILE = "seen_posts.txt"
+# 발송 기록 파일 경로. 환경변수 SEEN_FILE로 바꿀 수 있다 (기본값은 저장소의 seen_posts.txt).
+SEEN_FILE = os.getenv("SEEN_FILE", "").strip() or "seen_posts.txt"
 MAX_RECORDS = 3000
 
 
