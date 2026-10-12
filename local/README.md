@@ -1,7 +1,7 @@
 # 로컬 launchd 실행
 
 GitHub Actions가 계정 단위로 비활성화된 동안(2026-09-24~) 맥의 launchd가 예약 실행을 대신한다.
-workflow와 같은 주기(월-금 KST 11:13, 16:13)로 `local/run.sh`를 실행하며, 상태 파일은 저장소 밖에 둔다.
+평일(월-금) KST 10:30, 17:00에 `local/run.sh`를 실행하며, 상태 파일은 저장소 밖에 둔다.
 
 ## 준비
 - Python 3.12 (workflow와 동일). 없으면 `brew install python@3.12` 등으로 직접 설치한다. install.sh는 설치하지 않는다.

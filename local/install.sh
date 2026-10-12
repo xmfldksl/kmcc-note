@@ -79,6 +79,6 @@ launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
 launchctl bootstrap "$DOMAIN" "$PLIST"
 launchctl enable "$DOMAIN/$LABEL"
 
-echo "등록 완료: $PLIST (월-금 11:13, 16:13)"
+echo "등록 완료: $PLIST (월-금 10:30, 17:00)"
 echo "확인: launchctl print $DOMAIN/$LABEL"
 echo "로그: $LOG_DIR/YYYY-MM-DD.log"
