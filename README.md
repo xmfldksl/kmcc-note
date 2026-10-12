@@ -110,7 +110,7 @@ The integration must be connected to the database page for API access.
 
 ## Operational Notes
 
-- Scheduled runs are performed by GitHub Actions.
+- Scheduled runs are performed by GitHub Actions. While Actions is disabled, a macOS launchd agent runs the same schedule locally (see `local/README.md`).
 - Because Korean public-sector sites tend to block overseas IP ranges, large-scale collection (backfill) is recommended to run from a domestic IP environment.
 - To cope with the Gemini free-tier daily limit, a lightweight model is used first and automatically switches to a higher-tier model when the quota is exhausted.
 

@@ -4,3 +4,4 @@ src/__pycache__/
 local_test.ps1
 run_retag.ps1
 run_rename.ps1
+.env.local
