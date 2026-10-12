@@ -8,7 +8,7 @@ It is designed to track daily policy trends and committee schedules on specific 
 
 ## Features
 
-- **Automated collection**: Crawls 12 boards every weekday on a schedule (currently a macOS launchd agent; see [Scheduled Execution](#scheduled-execution)).
+- **Automated collection**: Crawls 12 boards on a weekday schedule (GitHub Actions or a macOS launchd agent; see [Scheduled Execution](#scheduled-execution)).
 - **Keyword filtering**: Always collects committee schedules and committee-result press releases; other posts are filtered by predefined keywords (title + body).
 - **Attachment summarization**: Downloads post attachments (PDF / HWPX / HWP), extracts the text, and summarizes it with the Gemini API. When a filename is garbled, the file format is detected by its content signature (magic bytes).
 - **Meeting summary format**: Meeting documents such as agendas, minutes, and transcripts are summarized in a fixed format for internal sharing (committee session number, per-item resolution/report classification, etc.).
@@ -32,7 +32,7 @@ src/
 ├── main.py            Main execution flow
 │
 ├── local/             macOS launchd runner (install.sh, run.sh, uninstall.sh)
-└── .github/workflows/scraper.yml   GitHub Actions (workflow_dispatch only; schedule commented out)
+└── .github/workflows/scraper.yml   GitHub Actions workflow
 ```
 
 ### Flow
@@ -94,10 +94,9 @@ Behavior is controlled by environment variables.
 
 ## Scheduled Execution
 
-Since **2026-09-24**, GitHub Actions has been disabled at the account level, so scheduled runs moved to a **macOS launchd agent** on a local Mac. It runs on weekdays at **10:30 and 17:00 KST**.
-The Actions workflow keeps its manual `workflow_dispatch` trigger, but the `schedule` block in `.github/workflows/scraper.yml` is commented out.
+Scheduled runs can be driven by **GitHub Actions** (`.github/workflows/scraper.yml`) or by a **macOS launchd agent** on a local Mac (`local/`). Details of the local runner are in [`local/README.md`](local/README.md).
 
-Key points of the local runner (details in [`local/README.md`](local/README.md)):
+Key points of the local runner:
 
 | Item | Location / Command |
 |---|---|
@@ -108,7 +107,7 @@ Key points of the local runner (details in [`local/README.md`](local/README.md))
 | State file (`seen_posts.txt`) | `$HOME/Library/Application Support/kmcc-note/` |
 | Logs | `$HOME/Library/Logs/kmcc-note/` |
 
-Manual runs actually send email and write to Notion. The steps to revert to GitHub Actions once it is restored (uninstall the agent, carry over the state file, uncomment `schedule`) are in `local/README.md`.
+Manual runs actually send email and write to Notion.
 
 ---
 
@@ -131,7 +130,7 @@ The integration must be connected to the database page for API access.
 
 ## Operational Notes
 
-- Scheduled runs currently come from the local macOS launchd agent (see [Scheduled Execution](#scheduled-execution)); GitHub Actions scheduling is paused until the account is restored.
+- Scheduled runs can use either GitHub Actions or a local macOS launchd agent (see [Scheduled Execution](#scheduled-execution)).
 - Because Korean public-sector sites tend to block overseas IP ranges, large-scale collection (backfill) is recommended to run from a domestic IP environment.
 - To cope with the Gemini free-tier daily limit, a lightweight model is used first and automatically switches to a higher-tier model when the quota is exhausted.
 
@@ -144,7 +143,7 @@ The integration must be connected to the database page for API access.
 - **Document processing**: pdfplumber (PDF), olefile (HWP), standard zipfile (HWPX)
 - **AI summarization**: Google Gemini API
 - **Output**: SMTP (email), Notion API (archive)
-- **Automation**: macOS launchd (current), GitHub Actions (manual dispatch only; schedule paused)
+- **Automation**: GitHub Actions or macOS launchd
 
 <br>
 
@@ -163,7 +162,7 @@ The integration must be connected to the database page for API access.
 
 ## 주요 기능
 
-- **자동 수집**: 평일 예약 실행으로 12개 게시판을 자동 크롤링합니다. (현재는 맥 launchd 에이전트가 수행, [예약 실행](#예약-실행) 참고)
+- **자동 수집**: 평일 예약 실행으로 12개 게시판을 자동 크롤링합니다. (GitHub Actions 또는 맥 launchd 에이전트, [예약 실행](#예약-실행) 참고)
 - **키워드 필터링**: 의사일정과 위원회 결과 보도자료는 필수 수집하고, 그 외 글은 사전 정의한 키워드(제목+본문)로 선별합니다.
 - **첨부파일 본문 요약**: 게시글 첨부파일(PDF / HWPX / HWP)을 직접 다운로드해 본문을 추출하고 Gemini API로 요약합니다. 파일명이 깨진 경우 내용 시그니처(매직 바이트)로 형식을 판별합니다.
 - **회의 요약 양식**: 의사일정·회의록·속기록 등 회의 문서는 부서 공유용 정형 양식(회의 차수, 안건별 의결/보고 구분 등)으로 요약합니다.
@@ -187,7 +186,7 @@ src/
 ├── main.py            전체 실행 흐름
 │
 ├── local/             맥 launchd 실행 스크립트 (install.sh, run.sh, uninstall.sh)
-└── .github/workflows/scraper.yml   깃허브 액션 (workflow_dispatch만 유효, schedule은 주석 처리)
+└── .github/workflows/scraper.yml   GitHub Actions workflow
 ```
 
 ### 처리 흐름
@@ -249,10 +248,9 @@ python -m src.main
 
 ## 예약 실행
 
-**2026-09-24**부터 GitHub Actions가 계정 단위로 비활성화되어, 예약 실행은 **맥 로컬 launchd 에이전트**로 전환되었습니다. 평일 **10:30, 17:00 KST**에 실행됩니다.
-액션 workflow의 수동 실행(`workflow_dispatch`)은 유지하되, `.github/workflows/scraper.yml`의 `schedule` 블록은 주석 처리된 상태입니다.
+예약 실행은 **GitHub Actions**(`.github/workflows/scraper.yml`) 또는 **맥 로컬 launchd 에이전트**(`local/`)로 할 수 있습니다. 로컬 실행 상세는 [`local/README.md`](local/README.md)를 참고합니다.
 
-로컬 실행 핵심 정보 (상세는 [`local/README.md`](local/README.md) 참고):
+로컬 실행 핵심 정보:
 
 | 항목 | 위치 / 명령 |
 |---|---|
@@ -263,7 +261,7 @@ python -m src.main
 | 상태 파일 (`seen_posts.txt`) | `$HOME/Library/Application Support/kmcc-note/` |
 | 로그 | `$HOME/Library/Logs/kmcc-note/` |
 
-수동 실행도 실제 메일 발송과 노션 적재가 일어나므로 주의합니다. Actions 복구 시 되돌리는 절차(에이전트 해제, 상태 파일 이관, `schedule` 주석 해제)는 `local/README.md`에 있습니다.
+수동 실행도 실제 메일 발송과 노션 적재가 일어나므로 주의합니다.
 
 ---
 
@@ -286,7 +284,7 @@ python -m src.main
 
 ## 운영 참고
 
-- 정기 실행은 현재 맥 로컬 launchd 에이전트가 수행합니다([예약 실행](#예약-실행) 참고). 깃허브 액션 스케줄은 계정 복구 전까지 중지 상태입니다.
+- 정기 실행은 GitHub Actions 또는 맥 로컬 launchd 에이전트로 수행할 수 있습니다([예약 실행](#예약-실행) 참고).
 - 한국 공공기관 사이트의 해외 IP 차단 특성상, 대량 수집(백필)은 국내 IP 환경에서 실행하는 것을 권장합니다.
 - Gemini 무료 등급의 일일 한도에 대응해 경량 모델을 우선 사용하고, 한도 소진 시 상위 모델로 자동 전환합니다.
 
@@ -299,4 +297,4 @@ python -m src.main
 - **문서 처리**: pdfplumber (PDF), olefile (HWP), 표준 zipfile (HWPX)
 - **AI 요약**: Google Gemini API
 - **출력**: SMTP (이메일), Notion API (아카이브)
-- **자동화**: 맥 launchd (현행), GitHub Actions (수동 실행만, 스케줄 중지)
+- **자동화**: GitHub Actions 또는 맥 launchd
