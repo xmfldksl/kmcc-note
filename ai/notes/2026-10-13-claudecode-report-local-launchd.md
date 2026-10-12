@@ -55,3 +55,12 @@
 
 ## 정리
 - 임시 파일 또는 workflow 유지/삭제: 스크래치 디렉터리만 사용, 저장소에 임시 파일 없음. workflow는 schedule 주석 상태로 유지.
+
+## 후속 확인 (2026-10-13)
+- 사용자 수행 완료: Python 3.12.15 설치, .env.local 입력(SMTP 앱 비밀번호에 공백이 포함돼 오류 1회 발생, 공백 제거로 해결), install.sh 실행·launchd 등록 성공.
+- 백필 실행: `local/run.sh BACKFILL_FROM=2026-09-24` → 01:31~01:56 KST, 종료 코드 0. 신규 14건 메일 발송·노션 적재, 발송 기록 175건.
+- 검증됨: 모델 체인(429 시 flash 전환), 노션 회차 병합 append 경로(38~41차), .md 속기록 추출.
+- 예약 시각을 평일 10:30/17:00 KST로 변경(commit 4fa8da7). 로컬 실행은 Actions 혼잡 회피 지터가 필요 없다. launchctl print로 10개 항목 반영 확인. workflow의 주석 처리된 cron은 그대로이며 Actions 복구 시 맞출지 재결정한다.
+- run.sh에 PYTHONUNBUFFERED=1 추가(commit acd8038): launchd 로그 파일에 print가 실시간 기록된다.
+- 잠자기 방지: sentinel-o-car 운영 설정으로 충족되어 별도 설정하지 않았다. 센티넬 해제 시 재확인 필요.
+- 남은 확인: 평일 10:30/17:00 예약 실행 로그(~/Library/Logs/kmcc-note/YYYY-MM-DD.log)에 "종료 코드=0".
