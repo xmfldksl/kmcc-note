@@ -58,6 +58,8 @@ for arg in "$@"; do
 done
 
 export SEEN_FILE="${SEEN_FILE:-$LOCAL_STATE_DEFAULT}"
+# launchd 로그 파일에 print가 실시간으로 기록되도록 Python 출력 버퍼링을 끈다.
+export PYTHONUNBUFFERED=1
 PY="$VENV_DIR/bin/python"
 
 if [[ ! -x "$PY" ]]; then
