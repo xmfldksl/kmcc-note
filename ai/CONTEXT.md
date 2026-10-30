@@ -1,6 +1,6 @@
 # CONTEXT
 
-최종 갱신: 2026-10-13 / 작성자: claudecode
+최종 갱신: 2026-10-28 / 작성자: claudecode
 (덮어쓰는 유일한 파일. 50줄 이내 유지.)
 
 ## 현재 목표
@@ -10,12 +10,12 @@
 - 로컬 실행 전환 완료, 예약 실행 검증 대기. launchd 등록·백필(2026-09-24~) 1회 완료, 평일 10:30/17:00 KST 예약.
 
 ## 최근 결정
+- GitHub Actions 삭제 (ai/DECISIONS.md 참조)
 - 로컬 예약 시각을 평일 10:30/17:00 KST로 변경 (ai/DECISIONS.md 참조)
 - Actions 비활성화로 맥 launchd 내재화, 복구 시 환원 (ai/DECISIONS.md 참조)
 - ai/ 공유 공간 도입
 
 ## 미해결 이슈
-- Actions 복구 시 되돌리기(schedule 주석 해제, launchd 해제). 절차는 local/README.md. cron을 10:30/17:00에 맞출지 그때 결정
 - 잠자기 방지는 sentinel-o-car 운영 설정에 의존. 센티넬 해제 시 재확인
 
 ## 다음 할 일
