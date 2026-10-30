@@ -1,6 +1,6 @@
 # 로컬 launchd 실행
 
-맥의 launchd로 예약 실행을 수행하는 구성이다. 평일 10:30/17:00 KST에 실행한다.
+맥의 launchd로 예약 실행을 수행하는 구성이다.
 `local/com.xmfldksl.kmcc-note.plist.template`에 정의된 시각에 `local/run.sh`를 실행하며, 상태 파일은 저장소 밖에 둔다.
 
 ## 준비
@@ -32,7 +32,7 @@ local/run.sh BACKFILL_FROM=YYYY-MM-DD          # 지정 날짜 이후 소급 수
 - 비정상 종료로 `$TMPDIR/kmcc-note.lock`이 남으면 `rmdir`로 지운다.
 
 ## GitHub Actions로 전환하려면
-workflow 파일은 2026-10-28에 삭제되었고 git 히스토리에 남아 있다.
+workflow 파일은 git 히스토리에 남아 있다.
 1. `local/uninstall.sh`로 에이전트 해제 (이중 실행 방지)
 2. 로컬 상태를 이어받으려면 `~/Library/Application Support/kmcc-note/seen_posts.txt`를 저장소 `seen_posts.txt`에 복사해 commit
 3. workflow 파일을 히스토리에서 복원한 뒤 `schedule`을 활성화해 commit

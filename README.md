@@ -93,7 +93,7 @@ Behavior is controlled by environment variables.
 
 ## Scheduled Execution
 
-Scheduled runs are performed by a **macOS launchd agent** on a local Mac (`local/`), on weekdays at 10:30 and 17:00 KST. Details are in [`local/README.md`](local/README.md).
+Scheduled runs are performed by a **macOS launchd agent** on a local Mac (`local/`). Details are in [`local/README.md`](local/README.md).
 
 Key points:
 
@@ -246,7 +246,7 @@ python -m src.main
 
 ## 예약 실행
 
-예약 실행은 **맥 로컬 launchd 에이전트**(`local/`)가 평일 10:30/17:00 KST에 수행합니다. 상세는 [`local/README.md`](local/README.md)를 참고합니다.
+예약 실행은 **맥 로컬 launchd 에이전트**(`local/`)가 수행합니다. 상세는 [`local/README.md`](local/README.md)를 참고합니다.
 
 핵심 정보:
 
