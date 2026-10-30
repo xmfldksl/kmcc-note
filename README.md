@@ -8,7 +8,7 @@ It is designed to track daily policy trends and committee schedules on specific 
 
 ## Features
 
-- **Automated collection**: Crawls 12 boards on a weekday schedule (GitHub Actions or a macOS launchd agent; see [Scheduled Execution](#scheduled-execution)).
+- **Automated collection**: Crawls 12 boards on a weekday schedule via a macOS launchd agent (see [Scheduled Execution](#scheduled-execution)).
 - **Keyword filtering**: Always collects committee schedules and committee-result press releases; other posts are filtered by predefined keywords (title + body).
 - **Attachment summarization**: Downloads post attachments (PDF / HWPX / HWP), extracts the text, and summarizes it with the Gemini API. When a filename is garbled, the file format is detected by its content signature (magic bytes).
 - **Meeting summary format**: Meeting documents such as agendas, minutes, and transcripts are summarized in a fixed format for internal sharing (committee session number, per-item resolution/report classification, etc.).
@@ -31,8 +31,7 @@ src/
 ├── notion_archiver.py Notion database archiving
 ├── main.py            Main execution flow
 │
-├── local/             macOS launchd runner (install.sh, run.sh, uninstall.sh)
-└── .github/workflows/scraper.yml   GitHub Actions workflow
+└── local/             macOS launchd runner (install.sh, run.sh, uninstall.sh)
 ```
 
 ### Flow
@@ -59,7 +58,7 @@ pip install -r requirements.txt
 
 ### Environment variables
 
-Set the following as environment variables (GitHub secrets for Actions, `.env.local` for the local launchd runner).
+Set the following as environment variables. For the launchd runner, put them in `.env.local` (copy from `.env.local.example`; git-ignored).
 
 | Variable | Purpose |
 |---|---|
@@ -94,9 +93,9 @@ Behavior is controlled by environment variables.
 
 ## Scheduled Execution
 
-Scheduled runs can be driven by **GitHub Actions** (`.github/workflows/scraper.yml`) or by a **macOS launchd agent** on a local Mac (`local/`). Details of the local runner are in [`local/README.md`](local/README.md).
+Scheduled runs are performed by a **macOS launchd agent** on a local Mac (`local/`), on weekdays at 10:30 and 17:00 KST. Details are in [`local/README.md`](local/README.md).
 
-Key points of the local runner:
+Key points:
 
 | Item | Location / Command |
 |---|---|
@@ -130,7 +129,7 @@ The integration must be connected to the database page for API access.
 
 ## Operational Notes
 
-- Scheduled runs can use either GitHub Actions or a local macOS launchd agent (see [Scheduled Execution](#scheduled-execution)).
+- Scheduled runs are performed by a local macOS launchd agent (see [Scheduled Execution](#scheduled-execution)).
 - Because Korean public-sector sites tend to block overseas IP ranges, large-scale collection (backfill) is recommended to run from a domestic IP environment.
 - To cope with the Gemini free-tier daily limit, a lightweight model is used first and automatically switches to a higher-tier model when the quota is exhausted.
 
@@ -143,7 +142,7 @@ The integration must be connected to the database page for API access.
 - **Document processing**: pdfplumber (PDF), olefile (HWP), standard zipfile (HWPX)
 - **AI summarization**: Google Gemini API
 - **Output**: SMTP (email), Notion API (archive)
-- **Automation**: GitHub Actions or macOS launchd
+- **Automation**: macOS launchd
 
 <br>
 
@@ -162,7 +161,7 @@ The integration must be connected to the database page for API access.
 
 ## 주요 기능
 
-- **자동 수집**: 평일 예약 실행으로 12개 게시판을 자동 크롤링합니다. (GitHub Actions 또는 맥 launchd 에이전트, [예약 실행](#예약-실행) 참고)
+- **자동 수집**: 맥 launchd 에이전트의 평일 예약 실행으로 12개 게시판을 자동 크롤링합니다. ([예약 실행](#예약-실행) 참고)
 - **키워드 필터링**: 의사일정과 위원회 결과 보도자료는 필수 수집하고, 그 외 글은 사전 정의한 키워드(제목+본문)로 선별합니다.
 - **첨부파일 본문 요약**: 게시글 첨부파일(PDF / HWPX / HWP)을 직접 다운로드해 본문을 추출하고 Gemini API로 요약합니다. 파일명이 깨진 경우 내용 시그니처(매직 바이트)로 형식을 판별합니다.
 - **회의 요약 양식**: 의사일정·회의록·속기록 등 회의 문서는 부서 공유용 정형 양식(회의 차수, 안건별 의결/보고 구분 등)으로 요약합니다.
@@ -185,8 +184,7 @@ src/
 ├── notion_archiver.py 노션 데이터베이스 적재
 ├── main.py            전체 실행 흐름
 │
-├── local/             맥 launchd 실행 스크립트 (install.sh, run.sh, uninstall.sh)
-└── .github/workflows/scraper.yml   GitHub Actions workflow
+└── local/             맥 launchd 실행 스크립트 (install.sh, run.sh, uninstall.sh)
 ```
 
 ### 처리 흐름
@@ -213,7 +211,7 @@ pip install -r requirements.txt
 
 ### 환경변수
 
-다음 값을 환경변수로 설정합니다. (깃허브 액션은 시크릿, 로컬 launchd 실행은 `.env.local`)
+다음 값을 환경변수로 설정합니다. launchd 실행은 `.env.local`에 작성합니다. (`.env.local.example` 복사 후 작성, git 무시 대상)
 
 | 변수명 | 용도 |
 |---|---|
@@ -248,9 +246,9 @@ python -m src.main
 
 ## 예약 실행
 
-예약 실행은 **GitHub Actions**(`.github/workflows/scraper.yml`) 또는 **맥 로컬 launchd 에이전트**(`local/`)로 할 수 있습니다. 로컬 실행 상세는 [`local/README.md`](local/README.md)를 참고합니다.
+예약 실행은 **맥 로컬 launchd 에이전트**(`local/`)가 평일 10:30/17:00 KST에 수행합니다. 상세는 [`local/README.md`](local/README.md)를 참고합니다.
 
-로컬 실행 핵심 정보:
+핵심 정보:
 
 | 항목 | 위치 / 명령 |
 |---|---|
@@ -284,7 +282,7 @@ python -m src.main
 
 ## 운영 참고
 
-- 정기 실행은 GitHub Actions 또는 맥 로컬 launchd 에이전트로 수행할 수 있습니다([예약 실행](#예약-실행) 참고).
+- 정기 실행은 맥 로컬 launchd 에이전트가 수행합니다([예약 실행](#예약-실행) 참고).
 - 한국 공공기관 사이트의 해외 IP 차단 특성상, 대량 수집(백필)은 국내 IP 환경에서 실행하는 것을 권장합니다.
 - Gemini 무료 등급의 일일 한도에 대응해 경량 모델을 우선 사용하고, 한도 소진 시 상위 모델로 자동 전환합니다.
 
@@ -297,4 +295,4 @@ python -m src.main
 - **문서 처리**: pdfplumber (PDF), olefile (HWP), 표준 zipfile (HWPX)
 - **AI 요약**: Google Gemini API
 - **출력**: SMTP (이메일), Notion API (아카이브)
-- **자동화**: GitHub Actions 또는 맥 launchd
+- **자동화**: 맥 launchd

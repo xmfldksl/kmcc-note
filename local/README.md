@@ -1,10 +1,10 @@
 # 로컬 launchd 실행
 
-GitHub Actions 대신 맥의 launchd로 예약 실행을 수행하는 구성이다.
+맥의 launchd로 예약 실행을 수행하는 구성이다. 평일 10:30/17:00 KST에 실행한다.
 `local/com.xmfldksl.kmcc-note.plist.template`에 정의된 시각에 `local/run.sh`를 실행하며, 상태 파일은 저장소 밖에 둔다.
 
 ## 준비
-- Python 3.12 (workflow와 동일). 없으면 `brew install python@3.12` 등으로 직접 설치한다. install.sh는 설치하지 않는다.
+- Python 3.12. 없으면 `brew install python@3.12` 등으로 직접 설치한다. install.sh는 설치하지 않는다.
 - `cp .env.local.example .env.local` 후 값을 채운다. (.env.local은 git에서 무시됨)
 
 ## 설치
@@ -31,7 +31,12 @@ local/run.sh BACKFILL_FROM=YYYY-MM-DD          # 지정 날짜 이후 소급 수
 - 상태 파일은 저장소에 commit하지 않는다. 저장소의 `seen_posts.txt`는 그대로 둔다.
 - 비정상 종료로 `$TMPDIR/kmcc-note.lock`이 남으면 `rmdir`로 지운다.
 
-## GitHub Actions로 되돌리기
+## GitHub Actions로 전환하려면
+workflow 파일은 2026-10-28에 삭제되었고 git 히스토리에 남아 있다.
 1. `local/uninstall.sh`로 에이전트 해제 (이중 실행 방지)
 2. 로컬 상태를 이어받으려면 `~/Library/Application Support/kmcc-note/seen_posts.txt`를 저장소 `seen_posts.txt`에 복사해 commit
-3. `.github/workflows/scraper.yml`의 `schedule`을 활성화 후 commit
+3. workflow 파일을 히스토리에서 복원한 뒤 `schedule`을 활성화해 commit
+   ```bash
+   git log --oneline -- .github/workflows/          # 삭제 직전 commit의 부모 hash 확인
+   git checkout <hash> -- .github/workflows/scraper.yml
+   ```
