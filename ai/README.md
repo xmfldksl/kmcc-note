@@ -24,8 +24,9 @@ CONTEXT.md, 그다음 CONTEXT.md에 링크된 최신 문서, 필요한 경우에
 - 비밀값, Token, 인증 URL은 어떤 문서에도 적지 않는다. 채팅 아카이브는 저장 전에 제거한다.
 
 ## 도구별 반영 방법
-- Codex, Claude Code: 직접 commit한다.
-- ChatGPT 채팅, Claude 채팅: 템플릿 형식으로 문서 전체를 출력한다. Claude Code 또는 Codex를 쓸 수 있으면 "아래 내용을 ai/notes/파일명으로 저장하고 CONTEXT.md의 최신 문서를 갱신한 뒤 commit"으로 위임하고, 쓸 수 없으면 사용자가 GitHub 웹 또는 vscode.dev로 반영한다.
+- Codex, Claude Code: 작업 시작 전 git pull로 원격 변경을 받은 뒤 직접 commit한다.
+- Claude 채팅: GitHub MCP 커넥터로 ai/를 직접 읽고 commit한다. 커넥터를 쓸 수 없으면 ChatGPT 채팅과 같은 방법을 쓴다.
+- ChatGPT 채팅: 템플릿 형식으로 문서 전체를 출력한다. Claude Code 또는 Codex를 쓸 수 있으면 "아래 내용을 ai/notes/파일명으로 저장하고 CONTEXT.md의 최신 문서를 갱신한 뒤 commit"으로 위임하고, 쓸 수 없으면 사용자가 GitHub 웹 또는 vscode.dev로 반영한다.
 
 ## 리뷰 흐름
 작업한 에이전트가 review/YYYY-MM-DD-주제 브랜치에 코드 변경과 review-request 문서를 commit한다.

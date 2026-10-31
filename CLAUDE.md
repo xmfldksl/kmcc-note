@@ -3,6 +3,7 @@
 @ai/README.md
 @ai/CONTEXT.md
 
+- 작업 시작 전에 git pull로 원격의 ai/ 변경을 받는다. Claude 채팅이 MCP로 직접 commit하기 때문이다.
 - 작업 시작 시 CONTEXT.md에 링크된 최신 문서를 확인한다.
 - 작업 종료 시 ai/templates/report.md 형식으로 ai/notes/에 보고를 쓰고 ai/CONTEXT.md를 갱신한다. 결정은 ai/DECISIONS.md에 추가한다.
 - 리뷰 요청은 review/YYYY-MM-DD-주제 브랜치에 ai/templates/review-request.md 형식으로 쓴다.
