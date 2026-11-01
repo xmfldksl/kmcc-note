@@ -36,3 +36,14 @@ CONTEXT.md, 그다음 CONTEXT.md에 링크된 최신 문서, 필요한 경우에
 ## 채팅 아카이브
 한도가 끝난 뒤에는 요약을 만들 수 없으므로 작업 단위가 끝날 때마다 chat-archive 형식으로 남긴다.
 새 채팅은 CONTEXT.md와 해당 아카이브만 읽고 재개한다.
+
+## 단축 명령
+사용자가 아래 단어로 지시하면 규칙대로 파일명, 날짜, 작성자, 브랜치를 채워 수행한다. "최신"은 CONTEXT.md의 최신 문서 항목을 따른다.
+- 상태: CONTEXT.md와 최신 report를 읽고 현재 상태와 다음 할 일을 보고한다. 파일을 수정하지 않는다.
+- 지시 주제: 채팅이 작업 지시 문서(handoff 형식)를 작성해 ai/notes/에 commit하고 CONTEXT.md의 최신 문서를 갱신한다.
+- 수행: 코딩 에이전트가 pull 후 최신 지시 문서를 읽고 수행하며, report를 쓰고 CONTEXT.md를 갱신해 push한다.
+- 리뷰요청: 코딩 에이전트가 review/YYYY-MM-DD-주제 브랜치에 변경과 review-request를 commit, push한다. 리뷰어는 지시가 없으면 claude다.
+- 리뷰: 리뷰어가 최신 review-request와 변경 파일을 읽고 review 문서를 같은 브랜치에 commit한다. Codex는 파일을 수정하지 않고 검토만 한다.
+- 반영: 코딩 에이전트가 pull 후 최신 review를 읽고 반영하며, 테스트 후 report를 쓰고 push한다.
+- 결정 내용: DECISIONS.md에 추가하고 CONTEXT.md 최근 결정에 반영해 commit한다.
+- 아카이브: 채팅이 chat-archive 문서를 ai/chats/에 commit하고 CONTEXT.md의 아카이브 항목을 갱신한다.
